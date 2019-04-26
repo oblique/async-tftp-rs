@@ -1,19 +1,20 @@
-// Clippy gives us a false possitive on FromPrimitive/ToPrimitive derives.
-// This is fixed on rust-clippy#3932.
-// TODO: remove this on the next clippy release.
-#![allow(clippy::useless_attribute)]
+// clippy finds redundant closures in nom macros.
+// allow this until it is fixed in nom.
+#![allow(clippy::redundant_closure)]
 
-use bytes::Buf;
-use failure::ResultExt;
-use memchr::memchr;
-use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::{FromPrimitive, ToPrimitive};
-use std::io::Cursor;
+use bytes::BufMut;
+use nom::be_u16;
 use std::str::{self, FromStr};
 
 use crate::error::*;
 
-#[derive(Debug)]
+const RRQ: u16 = 1;
+const WRQ: u16 = 2;
+const DATA: u16 = 3;
+const ACK: u16 = 4;
+const ERROR: u16 = 5;
+
+#[derive(Debug, PartialEq)]
 pub enum Packet {
     Rrq(String, Mode),
     Wrq(String, Mode),
@@ -22,20 +23,120 @@ pub enum Packet {
     Error(u16, String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Mode {
     Netascii,
     Octet,
     Mail,
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
-pub enum OpCode {
-    Rrq = 1,
-    Wrq = 2,
-    Data = 3,
-    Ack = 4,
-    Error = 5,
+fn take_512_max(i: &[u8]) -> nom::IResult<&[u8], &[u8]> {
+    if i.len() <= 512 {
+        Ok((&[], i))
+    } else {
+        Ok((&i[512..], &i[..512]))
+    }
+}
+
+named!(nul_string<&[u8], &str>,
+    do_parse!(
+        s: map_res!(take_till!(|ch| ch == b'\0'), str::from_utf8) >>
+        take!(1) >>
+
+        (s)
+    )
+);
+
+named!(filename_mode<&[u8], (&str, Mode)>,
+     do_parse!(
+        filename: nul_string >>
+        mode: alt!(
+            tag_no_case!("netascii") |
+            tag_no_case!("octet") |
+            tag_no_case!("mail")
+        ) >>
+        tag!("\0") >>
+
+        ({
+            let mode = str::from_utf8(mode).unwrap();
+            let mode = Mode::from_str(mode).unwrap();
+            (filename, mode)
+        })
+    )
+);
+
+named!(rrq<&[u8], Packet>,
+    do_parse!(
+        fm: filename_mode >>
+
+        ({
+            let (filename, mode) = fm;
+            Packet::Rrq(filename.to_owned(), mode)
+        })
+    )
+);
+
+named!(wrq<&[u8], Packet>,
+    do_parse!(
+        fm: filename_mode >>
+
+        ({
+            let (filename, mode) = fm;
+            Packet::Wrq(filename.to_owned(), mode)
+        })
+    )
+);
+
+named!(data<&[u8], Packet>,
+    do_parse!(
+        block: be_u16 >>
+        data: take_512_max >>
+
+        (Packet::Data(block, data.to_vec()))
+    )
+);
+
+named!(ack<&[u8], Packet>,
+    do_parse!(
+        block: be_u16 >>
+
+        (Packet::Ack(block))
+    )
+);
+
+named!(error<&[u8], Packet>,
+    do_parse!(
+        code: be_u16 >>
+        msg: nul_string >>
+
+        (Packet::Error(code, msg.to_owned()))
+    )
+);
+
+named!(packet<&[u8], Packet>,
+    do_parse!(
+        packet: switch!(be_u16,
+            RRQ => call!(rrq) |
+            WRQ => call!(wrq) |
+            DATA => call!(data) |
+            ACK => call!(ack) |
+            ERROR => call!(error)
+        ) >>
+
+        (packet)
+    )
+);
+
+impl Packet {
+    pub fn from_bytes(data: &[u8]) -> Result<Packet> {
+        let (rest, p) = packet(data).map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
+
+        if rest.is_empty() {
+            Ok(p)
+        } else {
+            Err(ErrorKind::PacketTooLarge.into())
+        }
+    }
 }
 
 impl Mode {
@@ -56,111 +157,7 @@ impl FromStr for Mode {
             "netascii" => Ok(Mode::Netascii),
             "octet" => Ok(Mode::Octet),
             "mail" => Ok(Mode::Mail),
-            _ => Err(ErrorKind::DecodeError("Invalid mode").into()),
+            _ => Err(ErrorKind::InvalidMode.into()),
         }
-    }
-}
-
-fn read_string(buf: &mut Cursor<&[u8]>) -> Result<String> {
-    let b = buf.bytes();
-
-    let pos =
-        memchr(0, b).ok_or_else(|| Error::from(ErrorKind::DecodeError("No string ending")))?;
-
-    let s = str::from_utf8(&b[..pos])
-        .context(ErrorKind::DecodeError("Invalid UTF-8 string"))?
-        .to_string();
-
-    buf.advance(pos + 1);
-
-    Ok(s)
-}
-
-impl Packet {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let mut buf = Cursor::new(bytes);
-
-        if buf.remaining() < 2 {
-            return Err(ErrorKind::DecodeError("Insufficient packet length").into());
-        }
-
-        match FromPrimitive::from_u16(buf.get_u16_be()) {
-            Some(OpCode::Rrq) => {
-                let filename = read_string(&mut buf)?;
-                let mode = Mode::from_str(read_string(&mut buf)?.as_str())?;
-                Ok(Packet::Rrq(filename, mode))
-            }
-            Some(OpCode::Wrq) => {
-                let filename = read_string(&mut buf)?;
-                let mode = Mode::from_str(read_string(&mut buf)?.as_str())?;
-                Ok(Packet::Wrq(filename, mode))
-            }
-            Some(OpCode::Data) => {
-                if buf.remaining() < 2 {
-                    return Err(ErrorKind::DecodeError("Insufficient packet length").into());
-                }
-                let block_nr = buf.get_u16_be();
-                let data = buf.collect();
-                Ok(Packet::Data(block_nr, data))
-            }
-            Some(OpCode::Ack) => {
-                if buf.remaining() < 2 {
-                    return Err(ErrorKind::DecodeError("Insufficient packet length").into());
-                }
-                let block_nr = buf.get_u16_be();
-                Ok(Packet::Ack(block_nr))
-            }
-            Some(OpCode::Error) => {
-                if buf.remaining() < 2 {
-                    return Err(ErrorKind::DecodeError("Insufficient packet length").into());
-                }
-                let code = buf.get_u16_be();
-                let msg = read_string(&mut buf)?;
-                Ok(Packet::Error(code, msg))
-            }
-            None => Err(ErrorKind::DecodeError("Invalid opcode").into()),
-        }
-    }
-
-    pub fn to_bytes(&self) -> Option<Vec<u8>> {
-        let mut buf = Vec::new();
-
-        match self {
-            Packet::Rrq(filename, mode) => {
-                let opcode = ToPrimitive::to_u16(&OpCode::Rrq)?.to_be_bytes();
-                buf.extend_from_slice(&opcode[..]);
-                buf.extend_from_slice(filename.as_bytes());
-                buf.push(0);
-                buf.extend_from_slice(mode.to_str().as_bytes());
-                buf.push(0);
-                Some(buf)
-            }
-            Packet::Wrq(filename, mode) => {
-                let opcode = ToPrimitive::to_u16(&OpCode::Wrq)?.to_be_bytes();
-                buf.extend_from_slice(&opcode[..]);
-                buf.extend_from_slice(filename.as_bytes());
-                buf.push(0);
-                buf.extend_from_slice(mode.to_str().as_bytes());
-                buf.push(0);
-                Some(buf)
-            }
-            _ => unimplemented!(),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use bytes::IntoBuf;
-
-    #[test]
-    fn check() {
-        let mut b = b"abc\0def\0".into_buf();
-
-        assert_eq!(read_string(&mut b), Ok("abc".to_string()));
-        assert_eq!(read_string(&mut b), Ok("def".to_string()));
-
-        //let b = Packet::from_buf(vec![1u8]).expect("XXX");
     }
 }

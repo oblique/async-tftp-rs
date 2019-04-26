@@ -2,19 +2,24 @@ pub use std::result::Result as StdResult;
 
 use failure::{AsFail, Backtrace, Causes, Context, Fail};
 use std::fmt;
-use std::sync::Arc;
 
 pub type Result<T> = StdResult<T, Error>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Error {
     inner: Context<ErrorKind>,
 }
 
 #[derive(Debug, Fail, Clone, PartialEq)]
 pub enum ErrorKind {
-    #[fail(display = "Decode error: {}", _0)]
-    DecodeError(&'static str),
+    #[fail(display = "Invalid mode")]
+    InvalidMode,
+
+    #[fail(display = "Invalid packet")]
+    InvalidPacket,
+
+    #[fail(display = "Packet too large")]
+    PacketTooLarge,
 }
 
 impl Error {
@@ -52,21 +57,13 @@ impl PartialEq for Error {
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Error {
         Error {
-            inner: Arc::new(Context::new(kind)),
+            inner: Context::new(kind),
         }
     }
 }
 
 impl From<Context<ErrorKind>> for Error {
-    fn from(context: Context<ErrorKind>) -> Error {
-        Error {
-            inner: Arc::new(context),
-        }
-    }
-}
-
-impl From<Arc<Context<ErrorKind>>> for Error {
-    fn from(inner: Arc<Context<ErrorKind>>) -> Error {
+    fn from(inner: Context<ErrorKind>) -> Error {
         Error {
             inner,
         }
