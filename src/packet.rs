@@ -137,6 +137,47 @@ impl Packet {
             Err(ErrorKind::PacketTooLarge.into())
         }
     }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        let mut buf = Vec::new();
+
+        match self {
+            Packet::Rrq(filename, mode) => {
+                buf.put_u16_be(RRQ);
+                buf.put(filename);
+                buf.put_u8(0);
+                buf.put(mode.to_str());
+                buf.put_u8(0);
+            }
+            Packet::Wrq(filename, mode) => {
+                buf.put_u16_be(WRQ);
+                buf.put(filename);
+                buf.put_u8(0);
+                buf.put(mode.to_str());
+                buf.put_u8(0);
+            }
+            Packet::Data(block, data) => {
+                if data.len() > 512 {
+                    return Err(ErrorKind::PacketTooLarge.into());
+                }
+                buf.put_u16_be(DATA);
+                buf.put_u16_be(*block);
+                buf.put(data);
+            }
+            Packet::Ack(block) => {
+                buf.put_u16_be(ACK);
+                buf.put_u16_be(*block);
+            }
+            Packet::Error(code, msg) => {
+                buf.put_u16_be(ERROR);
+                buf.put_u16_be(*code);
+                buf.put(msg);
+                buf.put_u8(0);
+            }
+        }
+
+        Ok(buf)
+    }
 }
 
 impl Mode {
@@ -159,5 +200,115 @@ impl FromStr for Mode {
             "mail" => Ok(Mode::Mail),
             _ => Err(ErrorKind::InvalidMode.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::iter::repeat;
+
+    #[test]
+    fn check_rrq() {
+        let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
+        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii)));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
+
+        let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
+        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii)));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
+
+        let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
+        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x01abc\0netascii");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x01abc\0netascXX\0");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+    }
+
+    #[test]
+    fn check_wrq() {
+        let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
+        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet)));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
+
+        let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
+        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet)));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
+
+        let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
+        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x02abc\0octet");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x02abc\0octex\0");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+    }
+
+    #[test]
+    fn check_data() {
+        let packet = Packet::from_bytes(b"\x00\x03\x00\x09abcde");
+        assert_eq!(packet, Ok(Packet::Data(9, b"abcde".to_vec())));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09abcde".to_vec()));
+
+        let packet = Packet::from_bytes(b"\x00\x03\x00\x09");
+        assert_eq!(packet, Ok(Packet::Data(9, b"".to_vec())));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09".to_vec()));
+
+        let data: Vec<_> = repeat(b'a').take(512).collect();
+        let mut packet_vec = b"\x00\x03\x00\x09".to_vec();
+        packet_vec.extend(data.iter());
+
+        let packet = Packet::from_bytes(&packet_vec);
+        assert_eq!(packet, Ok(Packet::Data(9, data)));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(packet_vec));
+
+        let data: Vec<_> = repeat(b'a').take(513).collect();
+        let mut packet_vec = b"\x00\x03\x00\x09".to_vec();
+        packet_vec.extend(data.iter());
+
+        let packet = Packet::from_bytes(&packet_vec);
+        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+    }
+
+    #[test]
+    fn check_ack() {
+        let packet = Packet::from_bytes(b"\x00\x04\x00\x09");
+        assert_eq!(packet, Ok(Packet::Ack(9)));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x04\x00\x09".to_vec()));
+
+        let packet = Packet::from_bytes(b"\x00\x04\x00");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x04\x00\x09a");
+        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+    }
+
+    #[test]
+    fn check_error() {
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0");
+        assert_eq!(packet, Ok(Packet::Error(8, "msg".to_string())));
+        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x05\x00\x08msg\0".to_vec()));
+
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
+        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x08");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+    }
+
+    #[test]
+    fn check_packet() {
+        let packet = Packet::from_bytes(b"\x00\x06");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x05\x00");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
     }
 }
