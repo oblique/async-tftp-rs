@@ -13,6 +13,7 @@ const WRQ: u16 = 2;
 const DATA: u16 = 3;
 const ACK: u16 = 4;
 const ERROR: u16 = 5;
+const OACK: u16 = 6;
 
 #[derive(Debug, PartialEq)]
 pub enum Packet {
@@ -21,6 +22,7 @@ pub enum Packet {
     Data(u16, Vec<u8>),
     Ack(u16),
     Error(u16, String),
+    OAck(Opts),
 }
 
 #[derive(Debug, PartialEq)]
@@ -143,6 +145,14 @@ named!(error<&[u8], Packet>,
     )
 );
 
+named!(oack<&[u8], Packet>,
+    do_parse!(
+        opts: opts >>
+
+        (Packet::OAck(opts))
+    )
+);
+
 named!(packet<&[u8], Packet>,
     do_parse!(
         packet: switch!(be_u16,
@@ -150,7 +160,8 @@ named!(packet<&[u8], Packet>,
             WRQ => call!(wrq) |
             DATA => call!(data) |
             ACK => call!(ack) |
-            ERROR => call!(error)
+            ERROR => call!(error) |
+            OACK => call!(oack)
         ) >>
 
         (packet)
@@ -203,6 +214,10 @@ impl Packet {
                 buf.put_u16_be(*code);
                 buf.put(msg);
                 buf.put_u8(0);
+            }
+            Packet::OAck(opts) => {
+                buf.put_u16_be(OACK);
+                opts.encode(&mut buf);
             }
         }
 
@@ -396,11 +411,65 @@ mod tests {
     }
 
     #[test]
-    fn check_packet() {
+    fn check_oack() {
         let packet = Packet::from_bytes(b"\x00\x06");
+        assert_eq!(
+            packet,
+            Ok(Packet::OAck(Opts {
+                block_size: None,
+                timeout: None,
+                transfer_size: None
+            }))
+        );
+
+        let packet = Packet::from_bytes(b"\x00\x06blksize\0123\0");
+        assert_eq!(
+            packet,
+            Ok(Packet::OAck(Opts {
+                block_size: Some(123),
+                timeout: None,
+                transfer_size: None
+            }))
+        );
+
+        let packet = Packet::from_bytes(b"\x00\x06timeout\03\0");
+        assert_eq!(
+            packet,
+            Ok(Packet::OAck(Opts {
+                block_size: None,
+                timeout: Some(3),
+                transfer_size: None
+            }))
+        );
+
+        let packet = Packet::from_bytes(b"\x00\x06tsize\05556\0");
+        assert_eq!(
+            packet,
+            Ok(Packet::OAck(Opts {
+                block_size: None,
+                timeout: None,
+                transfer_size: Some(5556),
+            }))
+        );
+
+        let packet = Packet::from_bytes(b"\x00\x06tsize\05556\0blksize\0123\0timeout\03\0");
+        assert_eq!(
+            packet,
+            Ok(Packet::OAck(Opts {
+                block_size: Some(123),
+                timeout: Some(3),
+                transfer_size: Some(5556),
+            }))
+        );
+    }
+
+    #[test]
+    fn check_packet() {
+        let packet = Packet::from_bytes(b"\x00\x07");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
     }
+
 }
