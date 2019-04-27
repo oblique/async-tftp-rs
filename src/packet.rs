@@ -16,8 +16,8 @@ const ERROR: u16 = 5;
 
 #[derive(Debug, PartialEq)]
 pub enum Packet {
-    Rrq(String, Mode, Vec<Opt>),
-    Wrq(String, Mode, Vec<Opt>),
+    Rrq(String, Mode, Opts),
+    Wrq(String, Mode, Opts),
     Data(u16, Vec<u8>),
     Ack(u16),
     Error(u16, String),
@@ -31,10 +31,10 @@ pub enum Mode {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Opt {
-    BlockSize(u16),
-    Timeout(u8),
-    TransferSize(u64),
+pub struct Opts {
+    block_size: Option<u16>,
+    timeout: Option<u8>,
+    transfer_size: Option<u64>,
 }
 
 named!(nul_str<&[u8], &str>,
@@ -64,33 +64,39 @@ named!(filename_mode<&[u8], (&str, Mode)>,
     )
 );
 
-named!(opt<&[u8], Opt>,
-    complete!(alt!(
+named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
+    many0_count!(complete!(alt!(
         do_parse!(
             tag_no_case!("blksize\0") >>
             n: map_res!(nul_str, u16::from_str) >>
 
-            (Opt::BlockSize(n))
+            (opts.block_size = Some(n))
         ) |
         do_parse!(
             tag_no_case!("timeout\0") >>
             n: map_res!(nul_str, u8::from_str) >>
 
-            (Opt::Timeout(n))
+            (opts.timeout = Some(n))
         ) |
         do_parse!(
             tag_no_case!("tsize\0") >>
             n: map_res!(nul_str, u64::from_str) >>
 
-            (Opt::TransferSize(n))
+            (opts.transfer_size = Some(n))
         )
-    ))
+    )))
 );
+
+fn opts(i: &[u8]) -> nom::IResult<&[u8], Opts> {
+    let mut opts = Opts::new();
+    let (i, _) = parse_opts(i, &mut opts)?;
+    Ok((i, opts))
+}
 
 named!(rrq<&[u8], Packet>,
     do_parse!(
         fm: filename_mode >>
-        opts: many0!(opt) >>
+        opts: opts >>
 
         ({
             let (filename, mode) = fm;
@@ -102,7 +108,7 @@ named!(rrq<&[u8], Packet>,
 named!(wrq<&[u8], Packet>,
     do_parse!(
         fm: filename_mode >>
-        opts: many0!(opt) >>
+        opts: opts >>
 
         ({
             let (filename, mode) = fm;
@@ -173,13 +179,7 @@ impl Packet {
                 buf.put_u8(0);
                 buf.put(mode.to_str());
                 buf.put_u8(0);
-
-                for x in opts {
-                    buf.put(x.name_str());
-                    buf.put_u8(0);
-                    buf.put(x.value_string());
-                    buf.put_u8(0);
-                }
+                opts.encode(&mut buf);
             }
             Packet::Wrq(filename, mode, opts) => {
                 buf.put_u16_be(WRQ);
@@ -187,13 +187,7 @@ impl Packet {
                 buf.put_u8(0);
                 buf.put(mode.to_str());
                 buf.put_u8(0);
-
-                for x in opts {
-                    buf.put(x.name_str());
-                    buf.put_u8(0);
-                    buf.put(x.value_string());
-                    buf.put_u8(0);
-                }
+                opts.encode(&mut buf);
             }
             Packet::Data(block, data) => {
                 buf.put_u16_be(DATA);
@@ -213,6 +207,36 @@ impl Packet {
         }
 
         Ok(buf)
+    }
+}
+
+impl Opts {
+    fn new() -> Self {
+        Opts {
+            block_size: None,
+            timeout: None,
+            transfer_size: None,
+        }
+    }
+
+    fn encode(&self, buf: &mut Vec<u8>) {
+        if let Some(x) = self.block_size {
+            buf.put("blksize\0");
+            buf.put(x.to_string());
+            buf.put_u8(0);
+        }
+
+        if let Some(x) = self.timeout {
+            buf.put("timeout\0");
+            buf.put(x.to_string());
+            buf.put_u8(0);
+        }
+
+        if let Some(x) = self.transfer_size {
+            buf.put("tsize\0");
+            buf.put(x.to_string());
+            buf.put_u8(0);
+        }
     }
 }
 
@@ -239,24 +263,6 @@ impl FromStr for Mode {
     }
 }
 
-impl Opt {
-    pub fn name_str(&self) -> &'static str {
-        match self {
-            Opt::BlockSize(..) => "blksize",
-            Opt::Timeout(..) => "timeout",
-            Opt::TransferSize(..) => "tsize",
-        }
-    }
-
-    pub fn value_string(&self) -> String {
-        match self {
-            Opt::BlockSize(n) => n.to_string(),
-            Opt::Timeout(n) => n.to_string(),
-            Opt::TransferSize(n) => n.to_string(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,11 +270,11 @@ mod tests {
     #[test]
     fn check_rrq() {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
-        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Vec::new())));
+        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
-        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Vec::new())));
+        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
@@ -287,7 +293,11 @@ mod tests {
             Ok(Packet::Rrq(
                 "abc".to_string(),
                 Mode::Netascii,
-                vec![Opt::BlockSize(123), Opt::Timeout(3), Opt::TransferSize(5556)]
+                Opts {
+                    block_size: Some(123),
+                    timeout: Some(3),
+                    transfer_size: Some(5556)
+                }
             ))
         );
         assert_eq!(
@@ -306,11 +316,11 @@ mod tests {
     #[test]
     fn check_wrq() {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
-        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Vec::new())));
+        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
-        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Vec::new())));
+        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
@@ -329,7 +339,11 @@ mod tests {
             Ok(Packet::Wrq(
                 "abc".to_string(),
                 Mode::Octet,
-                vec![Opt::BlockSize(123), Opt::Timeout(3), Opt::TransferSize(5556)]
+                Opts {
+                    block_size: Some(123),
+                    timeout: Some(3),
+                    transfer_size: Some(5556)
+                }
             ))
         );
         assert_eq!(
