@@ -32,6 +32,12 @@ pub enum Mode {
     Mail,
 }
 
+enum Opt {
+    BlockSize(u16),
+    Timeout(u8),
+    TransferSize(u64)
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Opts {
     block_size: Option<u16>,
@@ -66,34 +72,55 @@ named!(filename_mode<&[u8], (&str, Mode)>,
     )
 );
 
-named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
-    many0_count!(complete!(alt!(
-        do_parse!(
-            tag_no_case!("blksize\0") >>
-            n: map_res!(nul_str, u16::from_str) >>
-
-            (opts.block_size = Some(n))
-        ) |
-        do_parse!(
-            tag_no_case!("timeout\0") >>
-            n: map_res!(nul_str, u8::from_str) >>
-
-            (opts.timeout = Some(n))
-        ) |
-        do_parse!(
-            tag_no_case!("tsize\0") >>
-            n: map_res!(nul_str, u64::from_str) >>
-
-            (opts.transfer_size = Some(n))
-        )
-    )))
+named!(
+    blksize<Opt>,
+    map!(tuple!(
+        tag_no_case!("blksize\0"),
+        nul_str
+    ), |(_, value)| Opt::BlockSize(u16::from_str(value).unwrap()))
 );
 
-fn opts(i: &[u8]) -> nom::IResult<&[u8], Opts> {
-    let mut opts = Opts::new();
-    let (i, _) = parse_opts(i, &mut opts)?;
-    Ok((i, opts))
-}
+named!(
+    timeout<Opt>,
+    map!(tuple!(
+        tag_no_case!("timeout\0"),
+        nul_str
+    ), |(_, value)| Opt::Timeout(u8::from_str(value).unwrap()))
+);
+
+named!(
+    tsize<Opt>,
+    map!(tuple!(
+        tag_no_case!("tsize\0"),
+        nul_str
+    ), |(_, value)| Opt::TransferSize(u64::from_str(value).unwrap()))
+);
+
+named!(
+    opts<Opts>,
+    fold_many0!(
+        alt_complete!(
+            blksize |
+            timeout |
+            tsize
+        ),
+        Opts::new(),
+        |mut cur_opts: Opts, opt| {
+            match opt {
+                Opt::BlockSize(b) => {
+                    cur_opts.block_size = Some(b)
+                }
+                Opt::Timeout(t) => {
+                    cur_opts.timeout = Some(t)
+                },
+                Opt::TransferSize(t) => {
+                    cur_opts.transfer_size = Some(t)
+                }
+            };
+            cur_opts
+        }
+    )
+);
 
 named!(rrq<&[u8], Packet>,
     do_parse!(
