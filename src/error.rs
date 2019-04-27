@@ -17,9 +17,6 @@ pub enum ErrorKind {
 
     #[fail(display = "Invalid packet")]
     InvalidPacket,
-
-    #[fail(display = "Packet too large")]
-    PacketTooLarge,
 }
 
 impl Error {

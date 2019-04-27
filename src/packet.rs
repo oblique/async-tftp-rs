@@ -155,10 +155,11 @@ impl Packet {
     pub fn from_bytes(data: &[u8]) -> Result<Packet> {
         let (rest, p) = packet(data).map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
 
+        // ensure that whole packet was consumed
         if rest.is_empty() {
             Ok(p)
         } else {
-            Err(ErrorKind::PacketTooLarge.into())
+            Err(ErrorKind::InvalidPacket.into())
         }
     }
 
@@ -271,7 +272,7 @@ mod tests {
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
-        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
@@ -293,6 +294,13 @@ mod tests {
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
         );
+
+        let packet =
+            Packet::from_bytes(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\0");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
     }
 
     #[test]
@@ -306,7 +314,7 @@ mod tests {
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
-        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
@@ -328,6 +336,9 @@ mod tests {
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
         );
+
+        let packet = Packet::from_bytes(b"\x00\x02abc\0netascii\0blksizeX\0123\0");
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
     }
 
     #[test]
@@ -351,7 +362,7 @@ mod tests {
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09a");
-        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
     }
 
     #[test]
@@ -361,7 +372,7 @@ mod tests {
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x05\x00\x08msg\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
-        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
+        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
