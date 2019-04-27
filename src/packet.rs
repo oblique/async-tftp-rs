@@ -3,22 +3,42 @@
 #![allow(clippy::redundant_closure)]
 
 use bytes::BufMut;
-use nom::be_u16;
+use nom::{be_u16, rest};
 use std::str::{self, FromStr};
 
 use crate::error::*;
 
+/// Packet types
 const RRQ: u16 = 1;
 const WRQ: u16 = 2;
 const DATA: u16 = 3;
 const ACK: u16 = 4;
 const ERROR: u16 = 5;
 
+/// A struct which enforces our constraints of a max 512 byte size so
+/// that we don't have to worry about validation after this gets created.
+#[derive(PartialEq, Debug)]
+pub struct DataBlock {
+    content: Vec<u8>,
+}
+
+impl DataBlock {
+    fn new(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() > 512 {
+            Err(ErrorKind::PacketTooLarge.into())
+        } else {
+            Ok(Self {
+                content: Vec::from(bytes),
+            })
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Packet {
     Rrq(String, Mode),
     Wrq(String, Mode),
-    Data(u16, Vec<u8>),
+    Data(u16, DataBlock),
     Ack(u16),
     Error(u16, String),
 }
@@ -30,36 +50,44 @@ pub enum Mode {
     Mail,
 }
 
-fn take_512_max(i: &[u8]) -> nom::IResult<&[u8], &[u8]> {
-    if i.len() <= 512 {
-        Ok((&[], i))
-    } else {
-        Ok((&i[512..], &i[..512]))
-    }
-}
 
-named!(nul_string<&[u8], &str>,
+named!(data_block<DataBlock>,
+       do_parse!(
+           data: alt_complete!(
+               take!(512) |
+               call!(rest)
+           ) >>
+               ({ DataBlock::new(data).unwrap() })
+       )
+);
+
+named!(nul_terminated_string<&[u8], &str>,
     do_parse!(
         s: map_res!(take_till!(|ch| ch == b'\0'), str::from_utf8) >>
-        take!(1) >>
+            take!(1) >>
 
         (s)
     )
 );
 
+named_args!(
+    mode<'a>(name: &'a str)<Mode>,
+    map_res!(map_res!(
+        tag_no_case!(name),
+        str::from_utf8), Mode::from_str)
+);
+
 named!(filename_mode<&[u8], (&str, Mode)>,
      do_parse!(
-        filename: nul_string >>
+        filename: nul_terminated_string >>
         mode: alt!(
-            tag_no_case!("netascii") |
-            tag_no_case!("octet") |
-            tag_no_case!("mail")
+            call!(mode, "netascii") |
+            call!(mode, "octet") |
+            call!(mode, "mail")
         ) >>
-        tag!("\0") >>
+             tag!("\0") >>
 
         ({
-            let mode = str::from_utf8(mode).unwrap();
-            let mode = Mode::from_str(mode).unwrap();
             (filename, mode)
         })
     )
@@ -90,9 +118,9 @@ named!(wrq<&[u8], Packet>,
 named!(data<&[u8], Packet>,
     do_parse!(
         block: be_u16 >>
-        data: take_512_max >>
+        data: data_block >>
 
-        (Packet::Data(block, data.to_vec()))
+        (Packet::Data(block, data))
     )
 );
 
@@ -107,7 +135,7 @@ named!(ack<&[u8], Packet>,
 named!(error<&[u8], Packet>,
     do_parse!(
         code: be_u16 >>
-        msg: nul_string >>
+        msg: nul_terminated_string >>
 
         (Packet::Error(code, msg.to_owned()))
     )
@@ -129,7 +157,8 @@ named!(packet<&[u8], Packet>,
 
 impl Packet {
     pub fn from_bytes(data: &[u8]) -> Result<Packet> {
-        let (rest, p) = packet(data).map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
+        let (rest, p) = packet(data)
+            .map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
 
         if rest.is_empty() {
             Ok(p)
@@ -157,12 +186,9 @@ impl Packet {
                 buf.put_u8(0);
             }
             Packet::Data(block, data) => {
-                if data.len() > 512 {
-                    return Err(ErrorKind::PacketTooLarge.into());
-                }
                 buf.put_u16_be(DATA);
                 buf.put_u16_be(*block);
-                buf.put(data);
+                buf.put(&data.content);
             }
             Packet::Ack(block) => {
                 buf.put_u16_be(ACK);
@@ -251,11 +277,13 @@ mod tests {
     #[test]
     fn check_data() {
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09abcde");
-        assert_eq!(packet, Ok(Packet::Data(9, b"abcde".to_vec())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09abcde".to_vec()));
+        assert_eq!(
+            packet, Ok(Packet::Data(9, DataBlock::new(b"abcde").unwrap())));
+        assert_eq!(
+            packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09abcde".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09");
-        assert_eq!(packet, Ok(Packet::Data(9, b"".to_vec())));
+        assert_eq!(packet, Ok(Packet::Data(9, DataBlock::new(b"").unwrap())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09".to_vec()));
 
         let data: Vec<_> = repeat(b'a').take(512).collect();
@@ -263,7 +291,7 @@ mod tests {
         packet_vec.extend(data.iter());
 
         let packet = Packet::from_bytes(&packet_vec);
-        assert_eq!(packet, Ok(Packet::Data(9, data)));
+        assert_eq!(packet, Ok(Packet::Data(9, DataBlock::new(&data).unwrap())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(packet_vec));
 
         let data: Vec<_> = repeat(b'a').take(513).collect();
