@@ -74,26 +74,26 @@ named!(filename_mode<&[u8], (&str, Mode)>,
 
 named!(
     blksize<Opt>,
-    map!(tuple!(
+    map!(map_res!(tuple!(
         tag_no_case!("blksize\0"),
         nul_str
-    ), |(_, value)| Opt::BlockSize(u16::from_str(value).unwrap()))
+    ), |(_, value)| u16::from_str(value)), Opt::BlockSize)
 );
 
 named!(
     timeout<Opt>,
-    map!(tuple!(
+    map!(map_res!(tuple!(
         tag_no_case!("timeout\0"),
         nul_str
-    ), |(_, value)| Opt::Timeout(u8::from_str(value).unwrap()))
+    ), |(_, value)| u8::from_str(value)), Opt::Timeout)
 );
 
 named!(
     tsize<Opt>,
-    map!(tuple!(
+    map!(map_res!(tuple!(
         tag_no_case!("tsize\0"),
         nul_str
-    ), |(_, value)| Opt::TransferSize(u64::from_str(value).unwrap()))
+    ), |(_, value)| u64::from_str(value)), Opt::TransferSize)
 );
 
 named!(
