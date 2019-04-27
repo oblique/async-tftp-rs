@@ -3,7 +3,7 @@
 #![allow(clippy::redundant_closure)]
 
 use bytes::BufMut;
-use nom::be_u16;
+use nom::{be_u16, rest};
 use std::str::{self, FromStr};
 
 use crate::error::*;
@@ -16,8 +16,8 @@ const ERROR: u16 = 5;
 
 #[derive(Debug, PartialEq)]
 pub enum Packet {
-    Rrq(String, Mode),
-    Wrq(String, Mode),
+    Rrq(String, Mode, Vec<Opt>),
+    Wrq(String, Mode, Vec<Opt>),
     Data(u16, Vec<u8>),
     Ack(u16),
     Error(u16, String),
@@ -30,18 +30,17 @@ pub enum Mode {
     Mail,
 }
 
-fn take_512_max(i: &[u8]) -> nom::IResult<&[u8], &[u8]> {
-    if i.len() <= 512 {
-        Ok((&[], i))
-    } else {
-        Ok((&i[512..], &i[..512]))
-    }
+#[derive(Debug, PartialEq)]
+pub enum Opt {
+    BlockSize(u16),
+    Timeout(u8),
+    TransferSize(u64),
 }
 
-named!(nul_string<&[u8], &str>,
+named!(nul_str<&[u8], &str>,
     do_parse!(
         s: map_res!(take_till!(|ch| ch == b'\0'), str::from_utf8) >>
-        take!(1) >>
+        tag!("\0") >>
 
         (s)
     )
@@ -49,7 +48,7 @@ named!(nul_string<&[u8], &str>,
 
 named!(filename_mode<&[u8], (&str, Mode)>,
      do_parse!(
-        filename: nul_string >>
+        filename: nul_str >>
         mode: alt!(
             tag_no_case!("netascii") |
             tag_no_case!("octet") |
@@ -65,13 +64,37 @@ named!(filename_mode<&[u8], (&str, Mode)>,
     )
 );
 
+named!(opt<&[u8], Opt>,
+    alt!(
+        complete!(do_parse!(
+            tag_no_case!("blksize\0") >>
+            n: map_res!(nul_str, u16::from_str) >>
+
+            (Opt::BlockSize(n))
+        )) |
+        complete!(do_parse!(
+            tag_no_case!("timeout\0") >>
+            n: map_res!(nul_str, u8::from_str) >>
+
+            (Opt::Timeout(n))
+        )) |
+        complete!(do_parse!(
+            tag_no_case!("tsize\0") >>
+            n: map_res!(nul_str, u64::from_str) >>
+
+            (Opt::TransferSize(n))
+        ))
+    )
+);
+
 named!(rrq<&[u8], Packet>,
     do_parse!(
         fm: filename_mode >>
+        opts: many0!(opt) >>
 
         ({
             let (filename, mode) = fm;
-            Packet::Rrq(filename.to_owned(), mode)
+            Packet::Rrq(filename.to_owned(), mode, opts)
         })
     )
 );
@@ -79,10 +102,11 @@ named!(rrq<&[u8], Packet>,
 named!(wrq<&[u8], Packet>,
     do_parse!(
         fm: filename_mode >>
+        opts: many0!(opt) >>
 
         ({
             let (filename, mode) = fm;
-            Packet::Wrq(filename.to_owned(), mode)
+            Packet::Wrq(filename.to_owned(), mode, opts)
         })
     )
 );
@@ -90,7 +114,7 @@ named!(wrq<&[u8], Packet>,
 named!(data<&[u8], Packet>,
     do_parse!(
         block: be_u16 >>
-        data: take_512_max >>
+        data: rest >>
 
         (Packet::Data(block, data.to_vec()))
     )
@@ -107,7 +131,7 @@ named!(ack<&[u8], Packet>,
 named!(error<&[u8], Packet>,
     do_parse!(
         code: be_u16 >>
-        msg: nul_string >>
+        msg: nul_str >>
 
         (Packet::Error(code, msg.to_owned()))
     )
@@ -142,24 +166,35 @@ impl Packet {
         let mut buf = Vec::new();
 
         match self {
-            Packet::Rrq(filename, mode) => {
+            Packet::Rrq(filename, mode, opts) => {
                 buf.put_u16_be(RRQ);
                 buf.put(filename);
                 buf.put_u8(0);
                 buf.put(mode.to_str());
                 buf.put_u8(0);
+
+                for x in opts {
+                    buf.put(x.name_str());
+                    buf.put_u8(0);
+                    buf.put(x.value_string());
+                    buf.put_u8(0);
+                }
             }
-            Packet::Wrq(filename, mode) => {
+            Packet::Wrq(filename, mode, opts) => {
                 buf.put_u16_be(WRQ);
                 buf.put(filename);
                 buf.put_u8(0);
                 buf.put(mode.to_str());
                 buf.put_u8(0);
+
+                for x in opts {
+                    buf.put(x.name_str());
+                    buf.put_u8(0);
+                    buf.put(x.value_string());
+                    buf.put_u8(0);
+                }
             }
             Packet::Data(block, data) => {
-                if data.len() > 512 {
-                    return Err(ErrorKind::PacketTooLarge.into());
-                }
                 buf.put_u16_be(DATA);
                 buf.put_u16_be(*block);
                 buf.put(data);
@@ -203,19 +238,36 @@ impl FromStr for Mode {
     }
 }
 
+impl Opt {
+    pub fn name_str(&self) -> &'static str {
+        match self {
+            Opt::BlockSize(..) => "blksize",
+            Opt::Timeout(..) => "timeout",
+            Opt::TransferSize(..) => "tsize",
+        }
+    }
+
+    pub fn value_string(&self) -> String {
+        match self {
+            Opt::BlockSize(n) => n.to_string(),
+            Opt::Timeout(n) => n.to_string(),
+            Opt::TransferSize(n) => n.to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::iter::repeat;
 
     #[test]
     fn check_rrq() {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
-        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii)));
+        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Vec::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
-        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii)));
+        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Vec::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
@@ -226,16 +278,31 @@ mod tests {
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascXX\0");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet =
+            Packet::from_bytes(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0");
+        assert_eq!(
+            packet,
+            Ok(Packet::Rrq(
+                "abc".to_string(),
+                Mode::Netascii,
+                vec![Opt::BlockSize(123), Opt::Timeout(3), Opt::TransferSize(5556)]
+            ))
+        );
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
+        );
     }
 
     #[test]
     fn check_wrq() {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
-        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet)));
+        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Vec::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
-        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet)));
+        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Vec::new())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
@@ -246,6 +313,21 @@ mod tests {
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octex\0");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+
+        let packet =
+            Packet::from_bytes(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0");
+        assert_eq!(
+            packet,
+            Ok(Packet::Wrq(
+                "abc".to_string(),
+                Mode::Octet,
+                vec![Opt::BlockSize(123), Opt::Timeout(3), Opt::TransferSize(5556)]
+            ))
+        );
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
+        );
     }
 
     #[test]
@@ -257,21 +339,6 @@ mod tests {
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09");
         assert_eq!(packet, Ok(Packet::Data(9, b"".to_vec())));
         assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09".to_vec()));
-
-        let data: Vec<_> = repeat(b'a').take(512).collect();
-        let mut packet_vec = b"\x00\x03\x00\x09".to_vec();
-        packet_vec.extend(data.iter());
-
-        let packet = Packet::from_bytes(&packet_vec);
-        assert_eq!(packet, Ok(Packet::Data(9, data)));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(packet_vec));
-
-        let data: Vec<_> = repeat(b'a').take(513).collect();
-        let mut packet_vec = b"\x00\x03\x00\x09".to_vec();
-        packet_vec.extend(data.iter());
-
-        let packet = Packet::from_bytes(&packet_vec);
-        assert_eq!(packet, Err(ErrorKind::PacketTooLarge.into()));
     }
 
     #[test]
