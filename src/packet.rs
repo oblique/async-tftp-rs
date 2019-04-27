@@ -65,26 +65,26 @@ named!(filename_mode<&[u8], (&str, Mode)>,
 );
 
 named!(opt<&[u8], Opt>,
-    alt!(
-        complete!(do_parse!(
+    complete!(alt!(
+        do_parse!(
             tag_no_case!("blksize\0") >>
             n: map_res!(nul_str, u16::from_str) >>
 
             (Opt::BlockSize(n))
-        )) |
-        complete!(do_parse!(
+        ) |
+        do_parse!(
             tag_no_case!("timeout\0") >>
             n: map_res!(nul_str, u8::from_str) >>
 
             (Opt::Timeout(n))
-        )) |
-        complete!(do_parse!(
+        ) |
+        do_parse!(
             tag_no_case!("tsize\0") >>
             n: map_res!(nul_str, u64::from_str) >>
 
             (Opt::TransferSize(n))
-        ))
-    )
+        )
+    ))
 );
 
 named!(rrq<&[u8], Packet>,
