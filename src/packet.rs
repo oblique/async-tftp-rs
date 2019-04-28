@@ -48,26 +48,21 @@ named!(nul_str<&[u8], &str>,
     )
 );
 
-named!(filename_mode<&[u8], (&str, Mode)>,
+named!(mode<&[u8], Mode>,
      do_parse!(
-        filename: nul_str >>
-        mode: alt!(
+        mode: map_res!(map_res!(alt_complete!(
             tag_no_case!("netascii") |
             tag_no_case!("octet") |
             tag_no_case!("mail")
-        ) >>
+        ), str::from_utf8), Mode::from_str) >>
         tag!("\0") >>
 
-        ({
-            let mode = str::from_utf8(mode).unwrap();
-            let mode = Mode::from_str(mode).unwrap();
-            (filename, mode)
-        })
+        (mode)
     )
 );
 
 named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
-    many0_count!(complete!(alt!(
+    many0_count!(alt_complete!(
         do_parse!(
             tag_no_case!("blksize\0") >>
             n: map_res!(nul_str, u16::from_str) >>
@@ -86,7 +81,7 @@ named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
 
             (opts.transfer_size = Some(n))
         )
-    )))
+    ))
 );
 
 fn opts(i: &[u8]) -> nom::IResult<&[u8], Opts> {
@@ -97,25 +92,21 @@ fn opts(i: &[u8]) -> nom::IResult<&[u8], Opts> {
 
 named!(rrq<&[u8], Packet>,
     do_parse!(
-        fm: filename_mode >>
+        filename: nul_str >>
+        mode: mode >>
         opts: opts >>
 
-        ({
-            let (filename, mode) = fm;
-            Packet::Rrq(filename.to_owned(), mode, opts)
-        })
+        (Packet::Rrq(filename.to_owned(), mode, opts))
     )
 );
 
 named!(wrq<&[u8], Packet>,
     do_parse!(
-        fm: filename_mode >>
+        filename: nul_str >>
+        mode: mode >>
         opts: opts >>
 
-        ({
-            let (filename, mode) = fm;
-            Packet::Wrq(filename.to_owned(), mode, opts)
-        })
+        (Packet::Wrq(filename.to_owned(), mode, opts))
     )
 );
 
