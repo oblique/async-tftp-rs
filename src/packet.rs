@@ -161,7 +161,8 @@ named!(packet<&[u8], Packet>,
 
 impl Packet {
     pub fn from_bytes(data: &[u8]) -> Result<Packet> {
-        let (rest, p) = packet(data).map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
+        let (rest, p) =
+            packet(data).map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
 
         // ensure that whole packet was consumed
         if rest.is_empty() {
@@ -276,12 +277,24 @@ mod tests {
     #[test]
     fn check_rrq() {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
-        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
+        assert_eq!(
+            packet,
+            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new()))
+        );
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x01abc\0netascii\0".to_vec())
+        );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
-        assert_eq!(packet, Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x01abc\0netascii\0".to_vec()));
+        assert_eq!(
+            packet,
+            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new()))
+        );
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x01abc\0netascii\0".to_vec())
+        );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
@@ -292,8 +305,9 @@ mod tests {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascXX\0");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
-        let packet =
-            Packet::from_bytes(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0");
+        let packet = Packet::from_bytes(
+            b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0",
+        );
         assert_eq!(
             packet,
             Ok(Packet::Rrq(
@@ -311,23 +325,37 @@ mod tests {
             Ok(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
         );
 
-        let packet =
-            Packet::from_bytes(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\0");
+        let packet = Packet::from_bytes(
+            b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\0",
+        );
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
-        let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
+        let packet =
+            Packet::from_bytes(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
     }
 
     #[test]
     fn check_wrq() {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
-        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
+        assert_eq!(
+            packet,
+            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new()))
+        );
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x02abc\0octet\0".to_vec())
+        );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
-        assert_eq!(packet, Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x02abc\0octet\0".to_vec()));
+        assert_eq!(
+            packet,
+            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new()))
+        );
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x02abc\0octet\0".to_vec())
+        );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
@@ -338,8 +366,9 @@ mod tests {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octex\0");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
 
-        let packet =
-            Packet::from_bytes(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0");
+        let packet = Packet::from_bytes(
+            b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0",
+        );
         assert_eq!(
             packet,
             Ok(Packet::Wrq(
@@ -354,10 +383,12 @@ mod tests {
         );
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
+            Ok(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0"
+                .to_vec())
         );
 
-        let packet = Packet::from_bytes(b"\x00\x02abc\0netascii\0blksizeX\0123\0");
+        let packet =
+            Packet::from_bytes(b"\x00\x02abc\0netascii\0blksizeX\0123\0");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
     }
 
@@ -365,18 +396,27 @@ mod tests {
     fn check_data() {
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09abcde");
         assert_eq!(packet, Ok(Packet::Data(9, b"abcde".to_vec())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09abcde".to_vec()));
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x03\x00\x09abcde".to_vec())
+        );
 
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09");
         assert_eq!(packet, Ok(Packet::Data(9, b"".to_vec())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x03\x00\x09".to_vec()));
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x03\x00\x09".to_vec())
+        );
     }
 
     #[test]
     fn check_ack() {
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09");
         assert_eq!(packet, Ok(Packet::Ack(9)));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x04\x00\x09".to_vec()));
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x04\x00\x09".to_vec())
+        );
 
         let packet = Packet::from_bytes(b"\x00\x04\x00");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
@@ -389,7 +429,10 @@ mod tests {
     fn check_error() {
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0");
         assert_eq!(packet, Ok(Packet::Error(8, "msg".to_string())));
-        assert_eq!(packet.unwrap().to_bytes(), Ok(b"\x00\x05\x00\x08msg\0".to_vec()));
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            Ok(b"\x00\x05\x00\x08msg\0".to_vec())
+        );
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
@@ -443,7 +486,9 @@ mod tests {
             }))
         );
 
-        let packet = Packet::from_bytes(b"\x00\x06tsize\05556\0blksize\0123\0timeout\03\0");
+        let packet = Packet::from_bytes(
+            b"\x00\x06tsize\05556\0blksize\0123\0timeout\03\0",
+        );
         assert_eq!(
             packet,
             Ok(Packet::OAck(Opts {
