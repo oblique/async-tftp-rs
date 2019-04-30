@@ -17,6 +17,9 @@ pub enum ErrorKind {
 
     #[fail(display = "Invalid packet")]
     InvalidPacket,
+
+    #[fail(display = "IO Error")]
+    Io,
 }
 
 impl Error {
@@ -64,5 +67,11 @@ impl From<Context<ErrorKind>> for Error {
         Error {
             inner,
         }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Error {
+        error.context(ErrorKind::Io).into()
     }
 }

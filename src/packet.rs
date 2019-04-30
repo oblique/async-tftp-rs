@@ -32,7 +32,7 @@ pub enum Mode {
     Mail,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Opts {
     block_size: Option<u16>,
     timeout: Option<u8>,
@@ -85,7 +85,7 @@ named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
 );
 
 fn opts(i: &[u8]) -> nom::IResult<&[u8], Opts> {
-    let mut opts = Opts::new();
+    let mut opts = Opts::default();
     let (i, _) = parse_opts(i, &mut opts)?;
     Ok((i, opts))
 }
@@ -218,14 +218,6 @@ impl Packet {
 }
 
 impl Opts {
-    fn new() -> Self {
-        Opts {
-            block_size: None,
-            timeout: None,
-            transfer_size: None,
-        }
-    }
-
     fn encode(&self, buf: &mut Vec<u8>) {
         if let Some(x) = self.block_size {
             buf.put("blksize\0");
@@ -279,7 +271,7 @@ mod tests {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
         assert_eq!(
             packet,
-            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new()))
+            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::default()))
         );
         assert_eq!(
             packet.unwrap().to_bytes(),
@@ -289,7 +281,7 @@ mod tests {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
         assert_eq!(
             packet,
-            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::new()))
+            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::default()))
         );
         assert_eq!(
             packet.unwrap().to_bytes(),
@@ -340,7 +332,7 @@ mod tests {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
         assert_eq!(
             packet,
-            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new()))
+            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::default()))
         );
         assert_eq!(
             packet.unwrap().to_bytes(),
@@ -350,7 +342,7 @@ mod tests {
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
         assert_eq!(
             packet,
-            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::new()))
+            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::default()))
         );
         assert_eq!(
             packet.unwrap().to_bytes(),
