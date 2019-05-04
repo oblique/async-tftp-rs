@@ -34,9 +34,9 @@ pub enum Mode {
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Opts {
-    block_size: Option<u16>,
-    timeout: Option<u8>,
-    transfer_size: Option<u64>,
+    pub block_size: Option<u16>,
+    pub timeout: Option<u8>,
+    pub transfer_size: Option<u64>,
 }
 
 named!(nul_str<&[u8], &str>,
