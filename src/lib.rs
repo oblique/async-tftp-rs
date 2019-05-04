@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate nom;
 
+mod block_stream;
 mod codec;
 mod error;
 mod packet;
