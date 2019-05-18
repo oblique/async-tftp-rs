@@ -17,8 +17,8 @@ const OACK: u16 = 6;
 
 #[derive(Debug, PartialEq)]
 pub enum Packet {
-    Rrq(String, Mode, Opts),
-    Wrq(String, Mode, Opts),
+    Rrq(RwReq),
+    Wrq(RwReq),
     Data(u16, Vec<u8>),
     Ack(u16),
     Error(u16, String),
@@ -30,6 +30,13 @@ pub enum Mode {
     Netascii,
     Octet,
     Mail,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct RwReq {
+    pub filename: String,
+    pub mode: Mode,
+    pub opts: Opts,
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -96,7 +103,7 @@ named!(rrq<&[u8], Packet>,
         mode: mode >>
         opts: opts >>
 
-        (Packet::Rrq(filename.to_owned(), mode, opts))
+        (Packet::Rrq(RwReq { filename: filename.to_owned(), mode, opts }))
     )
 );
 
@@ -106,7 +113,7 @@ named!(wrq<&[u8], Packet>,
         mode: mode >>
         opts: opts >>
 
-        (Packet::Wrq(filename.to_owned(), mode, opts))
+        (Packet::Wrq(RwReq { filename: filename.to_owned(), mode, opts }))
     )
 );
 
@@ -176,21 +183,21 @@ impl Packet {
         let mut buf = Vec::new();
 
         match self {
-            Packet::Rrq(filename, mode, opts) => {
+            Packet::Rrq(req) => {
                 buf.put_u16_be(RRQ);
-                buf.put(filename);
+                buf.put(&req.filename);
                 buf.put_u8(0);
-                buf.put(mode.to_str());
+                buf.put(req.mode.to_str());
                 buf.put_u8(0);
-                opts.encode(&mut buf);
+                req.opts.encode(&mut buf);
             }
-            Packet::Wrq(filename, mode, opts) => {
+            Packet::Wrq(req) => {
                 buf.put_u16_be(WRQ);
-                buf.put(filename);
+                buf.put(&req.filename);
                 buf.put_u8(0);
-                buf.put(mode.to_str());
+                buf.put(req.mode.to_str());
                 buf.put_u8(0);
-                opts.encode(&mut buf);
+                req.opts.encode(&mut buf);
             }
             Packet::Data(block, data) => {
                 buf.put_u16_be(DATA);
@@ -269,20 +276,32 @@ mod tests {
     #[test]
     fn check_rrq() {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
+
         assert_eq!(
             packet,
-            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::default()))
+            Ok(Packet::Rrq(RwReq {
+                filename: "abc".to_string(),
+                mode: Mode::Netascii,
+                opts: Opts::default()
+            }))
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x01abc\0netascii\0".to_vec())
         );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
+
         assert_eq!(
             packet,
-            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::default()))
+            Ok(Packet::Rrq(RwReq {
+                filename: "abc".to_string(),
+                mode: Mode::Netascii,
+                opts: Opts::default()
+            }))
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x01abc\0netascii\0".to_vec())
@@ -300,18 +319,20 @@ mod tests {
         let packet = Packet::from_bytes(
             b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0",
         );
+
         assert_eq!(
             packet,
-            Ok(Packet::Rrq(
-                "abc".to_string(),
-                Mode::Netascii,
-                Opts {
+            Ok(Packet::Rrq(RwReq {
+                filename: "abc".to_string(),
+                mode: Mode::Netascii,
+                opts: Opts {
                     block_size: Some(123),
                     timeout: Some(3),
                     transfer_size: Some(5556)
                 }
-            ))
+            }))
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
@@ -330,20 +351,32 @@ mod tests {
     #[test]
     fn check_wrq() {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
+
         assert_eq!(
             packet,
-            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::default()))
+            Ok(Packet::Wrq(RwReq {
+                filename: "abc".to_string(),
+                mode: Mode::Octet,
+                opts: Opts::default()
+            }))
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x02abc\0octet\0".to_vec())
         );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
+
         assert_eq!(
             packet,
-            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::default()))
+            Ok(Packet::Wrq(RwReq {
+                filename: "abc".to_string(),
+                mode: Mode::Octet,
+                opts: Opts::default()
+            }))
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x02abc\0octet\0".to_vec())
@@ -361,18 +394,20 @@ mod tests {
         let packet = Packet::from_bytes(
             b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0",
         );
+
         assert_eq!(
             packet,
-            Ok(Packet::Wrq(
-                "abc".to_string(),
-                Mode::Octet,
-                Opts {
+            Ok(Packet::Wrq(RwReq {
+                filename: "abc".to_string(),
+                mode: Mode::Octet,
+                opts: Opts {
                     block_size: Some(123),
                     timeout: Some(3),
                     transfer_size: Some(5556)
                 }
-            ))
+            }))
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
             Ok(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0"

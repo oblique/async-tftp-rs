@@ -1,6 +1,6 @@
 [package]
-name = "tftp-rs"
-version = "0.1.0"
+name = "tftp"
+version = "0.0.0"
 authors = ["oblique <psyberbits@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -9,8 +9,8 @@ license = "MIT"
 failure = "0.1"
 bytes = "0.4.12"
 nom = "4.2.3"
-tokio = "0.1.19"
-futures = "0.1"
+futures-preview = "=0.3.0-alpha.16"
+runtime = "=0.3.0-alpha.4"
 
 [dev-dependencies]
 rand = "0.6.5"
