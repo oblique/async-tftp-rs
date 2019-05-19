@@ -1,10 +1,15 @@
+use futures::{select, FutureExt};
 use runtime::net::UdpSocket;
 use std::fs::File;
 use std::io::Read;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use crate::error::*;
 use crate::packet::*;
+use crate::util::timeout;
+
+const DEFAULT_TIMEOUT_SECS: u64 = 3;
 
 pub struct ReadRequest {
     peer: SocketAddr,
@@ -43,9 +48,28 @@ impl ReadRequest {
     }
 
     async fn send<'a>(&'a mut self, packet: &'a [u8]) -> Result<()> {
-        let mut buf = [0u8; 1024];
+        let timeout_dur = match self.req.opts.timeout.unwrap_or(0) {
+            0 => Duration::from_secs(DEFAULT_TIMEOUT_SECS),
+            secs => Duration::from_secs(secs as u64),
+        };
 
-        self.socket.send_to(&packet[..], self.peer).await?;
+        loop {
+            self.socket.send_to(&packet[..], self.peer).await?;
+
+            let mut recv_ack_fut = self.recv_ack().boxed().fuse();
+            let mut timeout_fut = timeout(timeout_dur);
+
+            select! {
+                _ = recv_ack_fut => break,
+                _ = timeout_fut => continue,
+            };
+        }
+
+        Ok(())
+    }
+
+    async fn recv_ack(&mut self) -> Result<()> {
+        let mut buf = [0u8; 1024];
 
         loop {
             let (len, peer) = self.socket.recv_from(&mut buf[..]).await?;
