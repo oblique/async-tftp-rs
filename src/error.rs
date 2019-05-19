@@ -2,6 +2,7 @@ pub use std::result::Result as StdResult;
 
 use failure::{AsFail, Backtrace, Causes, Context, Fail};
 use std::fmt;
+use std::sync::Arc;
 
 pub type Result<T> = StdResult<T, Error>;
 
@@ -10,7 +11,7 @@ pub struct Error {
     inner: Context<ErrorKind>,
 }
 
-#[derive(Debug, Fail, Clone, PartialEq)]
+#[derive(Debug, Fail, Clone)]
 pub enum ErrorKind {
     #[fail(display = "Invalid mode")]
     InvalidMode,
@@ -18,8 +19,8 @@ pub enum ErrorKind {
     #[fail(display = "Invalid packet")]
     InvalidPacket,
 
-    #[fail(display = "IO Error")]
-    Io,
+    #[fail(display = "IO Error: {}", _0)]
+    Io(Arc<std::io::Error>),
 }
 
 impl Error {
@@ -48,12 +49,6 @@ impl fmt::Display for Error {
     }
 }
 
-impl PartialEq for Error {
-    fn eq(&self, other: &Error) -> bool {
-        self.kind() == other.kind()
-    }
-}
-
 impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Error {
         Error {
@@ -72,6 +67,6 @@ impl From<Context<ErrorKind>> for Error {
 
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Error {
-        error.context(ErrorKind::Io).into()
+        ErrorKind::Io(Arc::new(error)).into()
     }
 }

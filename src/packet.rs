@@ -272,18 +272,18 @@ impl FromStr for Mode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use matches::{assert_matches, matches};
 
     #[test]
     fn check_rrq() {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
 
-        assert_eq!(
-            packet,
-            Ok(Packet::Rrq(RwReq {
-                filename: "abc".to_string(),
-                mode: Mode::Netascii,
-                opts: Opts::default()
-            }))
+        assert_matches!(packet, Ok(Packet::Rrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Netascii,
+                            opts: Opts::default()
+                        }
         );
 
         assert_eq!(
@@ -293,13 +293,12 @@ mod tests {
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
 
-        assert_eq!(
-            packet,
-            Ok(Packet::Rrq(RwReq {
-                filename: "abc".to_string(),
-                mode: Mode::Netascii,
-                opts: Opts::default()
-            }))
+        assert_matches!(packet, Ok(Packet::Rrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Netascii,
+                            opts: Opts::default()
+                        }
         );
 
         assert_eq!(
@@ -308,29 +307,28 @@ mod tests {
         );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascXX\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(
             b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0",
         );
 
-        assert_eq!(
-            packet,
-            Ok(Packet::Rrq(RwReq {
-                filename: "abc".to_string(),
-                mode: Mode::Netascii,
-                opts: Opts {
-                    block_size: Some(123),
-                    timeout: Some(3),
-                    transfer_size: Some(5556)
-                }
-            }))
+        assert_matches!(packet, Ok(Packet::Rrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Netascii,
+                            opts: Opts {
+                                block_size: Some(123),
+                                timeout: Some(3),
+                                transfer_size: Some(5556)
+                            }
+                        }
         );
 
         assert_eq!(
@@ -342,24 +340,23 @@ mod tests {
         let packet = Packet::from_bytes(
             b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\0",
         );
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet =
             Packet::from_bytes(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
     }
 
     #[test]
     fn check_wrq() {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
 
-        assert_eq!(
-            packet,
-            Ok(Packet::Wrq(RwReq {
-                filename: "abc".to_string(),
-                mode: Mode::Octet,
-                opts: Opts::default()
-            }))
+        assert_matches!(packet, Ok(Packet::Wrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Octet,
+                            opts: Opts::default()
+                        }
         );
 
         assert_eq!(
@@ -369,13 +366,12 @@ mod tests {
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
 
-        assert_eq!(
-            packet,
-            Ok(Packet::Wrq(RwReq {
-                filename: "abc".to_string(),
-                mode: Mode::Octet,
-                opts: Opts::default()
-            }))
+        assert_matches!(packet, Ok(Packet::Wrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Octet,
+                            opts: Opts::default()
+                        }
         );
 
         assert_eq!(
@@ -384,29 +380,28 @@ mod tests {
         );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octex\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(
             b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0",
         );
 
-        assert_eq!(
-            packet,
-            Ok(Packet::Wrq(RwReq {
-                filename: "abc".to_string(),
-                mode: Mode::Octet,
-                opts: Opts {
-                    block_size: Some(123),
-                    timeout: Some(3),
-                    transfer_size: Some(5556)
-                }
-            }))
+        assert_matches!(packet, Ok(Packet::Wrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Octet,
+                            opts: Opts {
+                                block_size: Some(123),
+                                timeout: Some(3),
+                                transfer_size: Some(5556)
+                            }
+                        }
         );
 
         assert_eq!(
@@ -417,117 +412,106 @@ mod tests {
 
         let packet =
             Packet::from_bytes(b"\x00\x02abc\0netascii\0blksizeX\0123\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
     }
 
     #[test]
     fn check_data() {
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09abcde");
-        assert_eq!(packet, Ok(Packet::Data(9, b"abcde".to_vec())));
+        assert_matches!(packet, Ok(Packet::Data(9, ref data)) if &data[..] == b"abcde");
+
         assert_eq!(
             packet.unwrap().to_bytes(),
             b"\x00\x03\x00\x09abcde".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09");
-        assert_eq!(packet, Ok(Packet::Data(9, b"".to_vec())));
+        assert_matches!(packet, Ok(Packet::Data(9, ref data)) if data.is_empty());
         assert_eq!(packet.unwrap().to_bytes(), b"\x00\x03\x00\x09".to_vec());
     }
 
     #[test]
     fn check_ack() {
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09");
-        assert_eq!(packet, Ok(Packet::Ack(9)));
+        assert_matches!(packet, Ok(Packet::Ack(9)));
         assert_eq!(packet.unwrap().to_bytes(), b"\x00\x04\x00\x09".to_vec());
 
         let packet = Packet::from_bytes(b"\x00\x04\x00");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09a");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
     }
 
     #[test]
     fn check_error() {
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0");
-        assert_eq!(packet, Ok(Packet::Error(8, "msg".to_string())));
+        assert_matches!(packet, Ok(Packet::Error(8, ref errmsg)) if errmsg == "msg");
         assert_eq!(
             packet.unwrap().to_bytes(),
             b"\x00\x05\x00\x08msg\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
     }
 
     #[test]
     fn check_oack() {
         let packet = Packet::from_bytes(b"\x00\x06");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: None,
-                timeout: None,
-                transfer_size: None
-            }))
-        );
+        assert_matches!(packet, Ok(Packet::OAck(ref opts)) if opts == &Opts::default());
 
         let packet = Packet::from_bytes(b"\x00\x06blksize\0123\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: Some(123),
-                timeout: None,
-                transfer_size: None
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: Some(123),
+                            timeout: None,
+                            transfer_size: None
+                        }
         );
 
         let packet = Packet::from_bytes(b"\x00\x06timeout\03\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: None,
-                timeout: Some(3),
-                transfer_size: None
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: None,
+                            timeout: Some(3),
+                            transfer_size: None
+                        }
         );
 
         let packet = Packet::from_bytes(b"\x00\x06tsize\05556\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: None,
-                timeout: None,
-                transfer_size: Some(5556),
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: None,
+                            timeout: None,
+                            transfer_size: Some(5556),
+                        }
         );
 
         let packet = Packet::from_bytes(
             b"\x00\x06tsize\05556\0blksize\0123\0timeout\03\0",
         );
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: Some(123),
-                timeout: Some(3),
-                transfer_size: Some(5556),
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: Some(123),
+                            timeout: Some(3),
+                            transfer_size: Some(5556),
+                        }
         );
     }
 
     #[test]
     fn check_packet() {
         let packet = Packet::from_bytes(b"\x00\x07");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
     }
-
 }
