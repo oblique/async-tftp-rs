@@ -4,6 +4,7 @@
 
 use bytes::BufMut;
 use nom::{be_u16, rest};
+use std::io;
 use std::str::{self, FromStr};
 
 use crate::error::*;
@@ -14,6 +15,13 @@ const DATA: u16 = 3;
 const ACK: u16 = 4;
 const ERROR: u16 = 5;
 const OACK: u16 = 6;
+
+const ERR_NOT_DEFINED: u16 = 0;
+const ERR_NOT_FOUNT: u16 = 1;
+const ERR_PERM_DENIED: u16 = 2;
+const ERR_FULL_DISK: u16 = 3;
+const ERR_INVALID_TFTP: u16 = 4;
+const ERR_ALREADY_EXISTS: u16 = 6;
 
 #[derive(Debug, PartialEq)]
 pub enum Packet {
@@ -221,6 +229,37 @@ impl Packet {
         }
 
         buf
+    }
+}
+
+impl From<Error> for Packet {
+    fn from(err: Error) -> Self {
+        let (err_id, err_msg) = match err.kind() {
+            ErrorKind::Io(err) => match err.kind() {
+                io::ErrorKind::NotFound => {
+                    (ERR_NOT_FOUNT, "File not found".to_string())
+                }
+                io::ErrorKind::PermissionDenied => {
+                    (ERR_PERM_DENIED, "Access violation".to_string())
+                }
+                io::ErrorKind::WriteZero => (
+                    ERR_FULL_DISK,
+                    "Disk full or allocation exceeded".to_string(),
+                ),
+                io::ErrorKind::AlreadyExists => {
+                    (ERR_ALREADY_EXISTS, "File already exists".to_string())
+                }
+                _ => match err.raw_os_error() {
+                    Some(rc) => (ERR_NOT_DEFINED, format!("IO error: {}", rc)),
+                    None => (ERR_NOT_DEFINED, "Unknown IO error".to_string()),
+                },
+            },
+            ErrorKind::InvalidMode | ErrorKind::InvalidPacket => {
+                (ERR_INVALID_TFTP, "Illegal TFTP operation".to_string())
+            }
+        };
+
+        Packet::Error(err_id, err_msg)
     }
 }
 
