@@ -36,7 +36,7 @@ impl ReadRequest {
             let last_block = block.len() < 512;
 
             self.block_id = self.block_id.wrapping_add(1);
-            let packet = Packet::Data(self.block_id, block).to_bytes()?;
+            let packet = Packet::Data(self.block_id, block).to_bytes();
             self.send(&packet[..]).await?;
 
             if last_block {

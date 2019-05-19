@@ -179,7 +179,7 @@ impl Packet {
         }
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
 
         match self {
@@ -220,7 +220,7 @@ impl Packet {
             }
         }
 
-        Ok(buf)
+        buf
     }
 }
 
@@ -288,7 +288,7 @@ mod tests {
 
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x01abc\0netascii\0".to_vec())
+            b"\x00\x01abc\0netascii\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
@@ -304,7 +304,7 @@ mod tests {
 
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x01abc\0netascii\0".to_vec())
+            b"\x00\x01abc\0netascii\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
@@ -335,7 +335,8 @@ mod tests {
 
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
+            b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0"
+                .to_vec()
         );
 
         let packet = Packet::from_bytes(
@@ -363,7 +364,7 @@ mod tests {
 
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x02abc\0octet\0".to_vec())
+            b"\x00\x02abc\0octet\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
@@ -379,7 +380,7 @@ mod tests {
 
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x02abc\0octet\0".to_vec())
+            b"\x00\x02abc\0octet\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
@@ -410,8 +411,8 @@ mod tests {
 
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0"
-                .to_vec())
+            b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0"
+                .to_vec()
         );
 
         let packet =
@@ -425,25 +426,19 @@ mod tests {
         assert_eq!(packet, Ok(Packet::Data(9, b"abcde".to_vec())));
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x03\x00\x09abcde".to_vec())
+            b"\x00\x03\x00\x09abcde".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09");
         assert_eq!(packet, Ok(Packet::Data(9, b"".to_vec())));
-        assert_eq!(
-            packet.unwrap().to_bytes(),
-            Ok(b"\x00\x03\x00\x09".to_vec())
-        );
+        assert_eq!(packet.unwrap().to_bytes(), b"\x00\x03\x00\x09".to_vec());
     }
 
     #[test]
     fn check_ack() {
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09");
         assert_eq!(packet, Ok(Packet::Ack(9)));
-        assert_eq!(
-            packet.unwrap().to_bytes(),
-            Ok(b"\x00\x04\x00\x09".to_vec())
-        );
+        assert_eq!(packet.unwrap().to_bytes(), b"\x00\x04\x00\x09".to_vec());
 
         let packet = Packet::from_bytes(b"\x00\x04\x00");
         assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
@@ -458,7 +453,7 @@ mod tests {
         assert_eq!(packet, Ok(Packet::Error(8, "msg".to_string())));
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x05\x00\x08msg\0".to_vec())
+            b"\x00\x05\x00\x08msg\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
