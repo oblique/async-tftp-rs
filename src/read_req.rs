@@ -73,10 +73,13 @@ impl ReadRequest {
 
         loop {
             let (len, peer) = self.socket.recv_from(&mut buf[..]).await?;
+
+            // if the packet do not come from the client we are serving, then ignore it
             if peer != self.peer {
                 continue;
             }
 
+            // parse only valid Ack packets, the rest are ignored
             if let Ok(Packet::Ack(block_id)) = Packet::from_bytes(&buf[..len]) {
                 if self.block_id == block_id {
                     break;

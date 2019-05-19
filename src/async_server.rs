@@ -7,7 +7,6 @@ use crate::read_req::*;
 
 pub struct AsyncTftpServer {
     socket: UdpSocket,
-    //    clients: HashMap<SocketAddr, Client>,
 }
 
 impl AsyncTftpServer {
