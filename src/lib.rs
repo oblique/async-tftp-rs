@@ -1,8 +1,5 @@
 #![feature(async_await)]
 
-#[macro_use]
-extern crate nom;
-
 mod async_server;
 mod error;
 mod packet;

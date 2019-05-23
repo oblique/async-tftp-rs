@@ -1,11 +1,11 @@
-// clippy finds redundant closures in nom macros.
-// allow this until it is fixed in nom.
-#![allow(clippy::redundant_closure)]
-
 use bytes::BufMut;
-use nom::{be_u16, rest};
 use std::io;
 use std::str::{self, FromStr};
+
+use nom::{
+    alt_complete, be_u16, call, do_parse, error_position, many0_count, map_res,
+    named, named_args, rest, switch, tag, tag_no_case, take_till,
+};
 
 use crate::error::*;
 
