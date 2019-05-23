@@ -50,7 +50,7 @@ impl ReadRequest {
     async fn send<'a>(&'a mut self, packet: &'a [u8]) -> Result<()> {
         let timeout_dur = match self.req.opts.timeout.unwrap_or(0) {
             0 => Duration::from_secs(DEFAULT_TIMEOUT_SECS),
-            secs => Duration::from_secs(secs as u64),
+            secs => Duration::from_secs(u64::from(secs)),
         };
 
         loop {
