@@ -6,7 +6,7 @@ use std::future::Future;
 use std::io;
 use std::time::Duration;
 
-pub fn timeout(
+pub fn delay(
     dur: Duration,
 ) -> impl Future<Output = io::Result<()>> + FusedFuture {
     Delay::new(dur).compat().fuse()
@@ -23,7 +23,7 @@ mod tests {
     async fn check() {
         let (_tx, mut rx) = mpsc::channel::<()>(1);
         let now = Instant::now();
-        let mut timeout_fut = timeout(Duration::from_secs(1));
+        let mut timeout_fut = delay(Duration::from_secs(1));
 
         select! {
             _ = rx.next() => panic!(),

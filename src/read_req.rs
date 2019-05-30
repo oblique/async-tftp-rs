@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::error::*;
 use crate::packet::*;
-use crate::util::timeout;
+use crate::utils::delay;
 
 const DEFAULT_TIMEOUT_SECS: u64 = 3;
 
@@ -57,7 +57,7 @@ impl ReadRequest {
             self.socket.send_to(&packet[..], self.peer).await?;
 
             let mut recv_ack_fut = self.recv_ack().boxed().fuse();
-            let mut timeout_fut = timeout(timeout_dur);
+            let mut timeout_fut = delay(timeout_dur);
 
             select! {
                 _ = recv_ack_fut => break,
