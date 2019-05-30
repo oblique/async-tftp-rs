@@ -39,16 +39,25 @@ impl AsyncTftpServer {
 
             match packet {
                 Packet::Rrq(req) => {
-                    runtime::spawn(
-                        async move {
-                            let mut read_req =
-                                ReadRequest::init(peer, req).unwrap();
-                            read_req.handle().await.unwrap();
-                        },
-                    );
+                    runtime::spawn(handle_rrq(req, peer));
                 }
-                _ => println!("not handled"),
+                Packet::Wrq(_req) => {
+                    // TODO
+                }
+                // ignore packets that are not requests
+                _ => continue,
             }
         }
     }
+}
+
+async fn handle_rrq(req: RwReq, peer: SocketAddr) {
+    let mut read_req = match ReadRequest::init(peer, req) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("Failed to bind udp socket: {:?}", e);
+            return;
+        }
+    };
+    read_req.handle().await;
 }

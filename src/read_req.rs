@@ -9,7 +9,8 @@ use crate::error::*;
 use crate::packet::*;
 use crate::utils::delay;
 
-const DEFAULT_TIMEOUT_SECS: u64 = 3;
+const DEFAULT_TIMEOUT_SECS: u8 = 3;
+const DEFAULT_BLOCK_SIZE: u16 = 512;
 
 pub struct ReadRequest {
     peer: SocketAddr,
@@ -28,12 +29,38 @@ impl ReadRequest {
         })
     }
 
-    pub async fn handle(&mut self) -> Result<()> {
-        let mut file = File::open(&self.req.filename)?;
+    pub async fn handle(&mut self) {
+        if let Err(e) = self.try_handle().await {
+            let packet = Packet::from(e).to_bytes();
+            // Errors are never retransmitted.
+            // We do not care if `send_to` resulted to an IO error.
+            let _ = self.socket.send_to(&packet[..], self.peer).await;
+        }
+    }
 
+    async fn try_handle(&mut self) -> Result<()> {
+        let mut file = File::open(&self.req.filename)?;
+        let mut oack_opts = self.req.opts.clone();
+
+        // Server needs to reply the size of the actual file
+        oack_opts.transfer_size = match self.req.opts.transfer_size {
+            Some(0) => Some(file.metadata()?.len()),
+            _ => None,
+        };
+
+        // Reply with OACK if needed
+        if !oack_opts.all_none() {
+            let packet = Packet::OAck(oack_opts).to_bytes();
+            self.send(&packet[..]).await?;
+        }
+
+        let block_size =
+            self.req.opts.block_size.unwrap_or(DEFAULT_BLOCK_SIZE).into();
+
+        // Send file to client
         loop {
-            let block = read_block(&mut file, 512)?;
-            let last_block = block.len() < 512;
+            let block = read_block(&mut file, block_size)?;
+            let last_block = block.len() < block_size;
 
             self.block_id = self.block_id.wrapping_add(1);
             let packet = Packet::Data(self.block_id, block).to_bytes();
@@ -48,16 +75,14 @@ impl ReadRequest {
     }
 
     async fn send<'a>(&'a mut self, packet: &'a [u8]) -> Result<()> {
-        let timeout_dur = match self.req.opts.timeout.unwrap_or(0) {
-            0 => Duration::from_secs(DEFAULT_TIMEOUT_SECS),
-            secs => Duration::from_secs(u64::from(secs)),
-        };
+        let timeout =
+            self.req.opts.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS).into();
 
         loop {
             self.socket.send_to(&packet[..], self.peer).await?;
 
             let mut recv_ack_fut = self.recv_ack().boxed().fuse();
-            let mut timeout_fut = delay(timeout_dur);
+            let mut timeout_fut = delay(Duration::from_secs(timeout));
 
             select! {
                 _ = recv_ack_fut => break,
