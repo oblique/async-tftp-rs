@@ -47,7 +47,7 @@ pub struct RwReq {
     pub opts: Opts,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Opts {
     pub block_size: Option<u16>,
     pub timeout: Option<u8>,
@@ -82,13 +82,13 @@ named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
             tag_no_case!("blksize\0") >>
             n: map_res!(nul_str, u16::from_str) >>
 
-            (opts.block_size = Some(n))
+            (opts.block_size = Some(n).filter(|x| *x >= 8 && *x <= 65464))
         ) |
         do_parse!(
             tag_no_case!("timeout\0") >>
             n: map_res!(nul_str, u8::from_str) >>
 
-            (opts.timeout = Some(n))
+            (opts.timeout = Some(n).filter(|x| *x >= 1))
         ) |
         do_parse!(
             tag_no_case!("tsize\0") >>
@@ -282,6 +282,10 @@ impl Opts {
             buf.put(x.to_string());
             buf.put_u8(0);
         }
+    }
+
+    pub fn all_none(&self) -> bool {
+        *self == Opts::default()
     }
 }
 
@@ -552,5 +556,83 @@ mod tests {
 
         let packet = Packet::from_bytes(b"\x00\x05\x00");
         assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+    }
+
+    #[test]
+    fn check_blksize_boundaries() {
+        let (_, opt) = opts(b"blksize\07\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: None,
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"blksize\08\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: Some(8),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"blksize\065464\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: Some(65464),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"blksize\065465\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: None,
+                ..Opts::default()
+            }
+        );
+    }
+
+    #[test]
+    fn check_timeout_boundaries() {
+        let (_, opt) = opts(b"timeout\00\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: None,
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"timeout\01\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: Some(1),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"timeout\0255\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: Some(255),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"timeout\0256\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: None,
+                ..Opts::default()
+            }
+        );
     }
 }
