@@ -176,14 +176,13 @@ named!(packet<&[u8], Packet>,
 
 impl Packet {
     pub fn from_bytes(data: &[u8]) -> Result<Packet> {
-        let (rest, p) =
-            packet(data).map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
+        let (rest, p) = packet(data).map_err(|_| Error::InvalidPacket)?;
 
         // ensure that whole packet was consumed
         if rest.is_empty() {
             Ok(p)
         } else {
-            Err(ErrorKind::InvalidPacket.into())
+            Err(Error::InvalidPacket)
         }
     }
 
@@ -234,8 +233,8 @@ impl Packet {
 
 impl From<Error> for Packet {
     fn from(err: Error) -> Self {
-        let (err_id, err_msg) = match err.kind() {
-            ErrorKind::Io(err) => match err.kind() {
+        let (err_id, err_msg) = match err {
+            Error::Io(err) => match err.kind() {
                 io::ErrorKind::NotFound => {
                     (ERR_NOT_FOUNT, "File not found".to_string())
                 }
@@ -254,7 +253,7 @@ impl From<Error> for Packet {
                     None => (ERR_NOT_DEFINED, "Unknown IO error".to_string()),
                 },
             },
-            ErrorKind::InvalidMode | ErrorKind::InvalidPacket => {
+            Error::InvalidMode | Error::InvalidPacket => {
                 (ERR_INVALID_TFTP, "Illegal TFTP operation".to_string())
             }
         };
@@ -307,7 +306,7 @@ impl FromStr for Mode {
             "netascii" => Ok(Mode::Netascii),
             "octet" => Ok(Mode::Octet),
             "mail" => Ok(Mode::Mail),
-            _ => Err(ErrorKind::InvalidMode.into()),
+            _ => Err(Error::InvalidMode),
         }
     }
 }
@@ -350,13 +349,13 @@ mod tests {
         );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascXX\0");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(
             b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0",
@@ -383,11 +382,11 @@ mod tests {
         let packet = Packet::from_bytes(
             b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\0",
         );
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet =
             Packet::from_bytes(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
@@ -423,13 +422,13 @@ mod tests {
         );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octex\0");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(
             b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0",
@@ -455,7 +454,7 @@ mod tests {
 
         let packet =
             Packet::from_bytes(b"\x00\x02abc\0netascii\0blksizeX\0123\0");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
@@ -480,10 +479,10 @@ mod tests {
         assert_eq!(packet.unwrap().to_bytes(), b"\x00\x04\x00\x09".to_vec());
 
         let packet = Packet::from_bytes(b"\x00\x04\x00");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09a");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
@@ -496,13 +495,13 @@ mod tests {
         );
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
@@ -552,10 +551,10 @@ mod tests {
     #[test]
     fn check_packet() {
         let packet = Packet::from_bytes(b"\x00\x07");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00");
-        assert_matches!(packet, Err(ref e) if matches!(e.kind(), ErrorKind::InvalidPacket));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
