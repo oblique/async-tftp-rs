@@ -1,10 +1,12 @@
-// clippy finds redundant closures in nom macros.
-// allow this until it is fixed in nom.
-#![allow(clippy::redundant_closure)]
-
 use bytes::BufMut;
-use nom::{be_u16, rest};
+use std::io;
+use std::result::Result as StdResult;
 use std::str::{self, FromStr};
+
+use nom::{
+    alt_complete, be_u16, call, do_parse, error_position, many0_count, map_res,
+    named, named_args, rest, switch, tag, tag_no_case, take_till,
+};
 
 use crate::error::*;
 
@@ -15,10 +17,17 @@ const ACK: u16 = 4;
 const ERROR: u16 = 5;
 const OACK: u16 = 6;
 
+const ERR_NOT_DEFINED: u16 = 0;
+const ERR_NOT_FOUNT: u16 = 1;
+const ERR_PERM_DENIED: u16 = 2;
+const ERR_FULL_DISK: u16 = 3;
+const ERR_INVALID_TFTP: u16 = 4;
+const ERR_ALREADY_EXISTS: u16 = 6;
+
 #[derive(Debug, PartialEq)]
 pub enum Packet {
-    Rrq(String, Mode, Opts),
-    Wrq(String, Mode, Opts),
+    Rrq(RwReq),
+    Wrq(RwReq),
     Data(u16, Vec<u8>),
     Ack(u16),
     Error(u16, String),
@@ -32,7 +41,14 @@ pub enum Mode {
     Mail,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, PartialEq)]
+pub struct RwReq {
+    pub filename: String,
+    pub mode: Mode,
+    pub opts: Opts,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Opts {
     pub block_size: Option<u16>,
     pub timeout: Option<u8>,
@@ -67,13 +83,13 @@ named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
             tag_no_case!("blksize\0") >>
             n: map_res!(nul_str, u16::from_str) >>
 
-            (opts.block_size = Some(n))
+            (opts.block_size = Some(n).filter(|x| *x >= 8 && *x <= 65464))
         ) |
         do_parse!(
             tag_no_case!("timeout\0") >>
             n: map_res!(nul_str, u8::from_str) >>
 
-            (opts.timeout = Some(n))
+            (opts.timeout = Some(n).filter(|x| *x >= 1))
         ) |
         do_parse!(
             tag_no_case!("tsize\0") >>
@@ -96,7 +112,7 @@ named!(rrq<&[u8], Packet>,
         mode: mode >>
         opts: opts >>
 
-        (Packet::Rrq(filename.to_owned(), mode, opts))
+        (Packet::Rrq(RwReq { filename: filename.to_owned(), mode, opts }))
     )
 );
 
@@ -106,7 +122,7 @@ named!(wrq<&[u8], Packet>,
         mode: mode >>
         opts: opts >>
 
-        (Packet::Wrq(filename.to_owned(), mode, opts))
+        (Packet::Wrq(RwReq { filename: filename.to_owned(), mode, opts }))
     )
 );
 
@@ -161,36 +177,35 @@ named!(packet<&[u8], Packet>,
 
 impl Packet {
     pub fn from_bytes(data: &[u8]) -> Result<Packet> {
-        let (rest, p) =
-            packet(data).map_err(|_| Error::from(ErrorKind::InvalidPacket))?;
+        let (rest, p) = packet(data).map_err(|_| Error::InvalidPacket)?;
 
         // ensure that whole packet was consumed
         if rest.is_empty() {
             Ok(p)
         } else {
-            Err(ErrorKind::InvalidPacket.into())
+            Err(Error::InvalidPacket)
         }
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
 
         match self {
-            Packet::Rrq(filename, mode, opts) => {
+            Packet::Rrq(req) => {
                 buf.put_u16_be(RRQ);
-                buf.put(filename);
+                buf.put(&req.filename);
                 buf.put_u8(0);
-                buf.put(mode.to_str());
+                buf.put(req.mode.to_str());
                 buf.put_u8(0);
-                opts.encode(&mut buf);
+                req.opts.encode(&mut buf);
             }
-            Packet::Wrq(filename, mode, opts) => {
+            Packet::Wrq(req) => {
                 buf.put_u16_be(WRQ);
-                buf.put(filename);
+                buf.put(&req.filename);
                 buf.put_u8(0);
-                buf.put(mode.to_str());
+                buf.put(req.mode.to_str());
                 buf.put_u8(0);
-                opts.encode(&mut buf);
+                req.opts.encode(&mut buf);
             }
             Packet::Data(block, data) => {
                 buf.put_u16_be(DATA);
@@ -213,7 +228,39 @@ impl Packet {
             }
         }
 
-        Ok(buf)
+        buf
+    }
+}
+
+impl From<Error> for Packet {
+    fn from(err: Error) -> Self {
+        let (err_id, err_msg) = match err {
+            Error::Io(err) => match err.kind() {
+                io::ErrorKind::NotFound => {
+                    (ERR_NOT_FOUNT, "File not found".to_string())
+                }
+                io::ErrorKind::PermissionDenied => {
+                    (ERR_PERM_DENIED, "Access violation".to_string())
+                }
+                io::ErrorKind::WriteZero => (
+                    ERR_FULL_DISK,
+                    "Disk full or allocation exceeded".to_string(),
+                ),
+                io::ErrorKind::AlreadyExists => {
+                    (ERR_ALREADY_EXISTS, "File already exists".to_string())
+                }
+                _ => match err.raw_os_error() {
+                    Some(rc) => (ERR_NOT_DEFINED, format!("IO error: {}", rc)),
+                    None => (ERR_NOT_DEFINED, "Unknown IO error".to_string()),
+                },
+            },
+            Error::InvalidMode | Error::InvalidPacket => {
+                (ERR_INVALID_TFTP, "Illegal TFTP operation".to_string())
+            }
+            Error::Bind(_) => unreachable!(),
+        };
+
+        Packet::Error(err_id, err_msg)
     }
 }
 
@@ -237,6 +284,10 @@ impl Opts {
             buf.put_u8(0);
         }
     }
+
+    pub fn all_none(&self) -> bool {
+        *self == Opts::default()
+    }
 }
 
 impl Mode {
@@ -257,7 +308,7 @@ impl FromStr for Mode {
             "netascii" => Ok(Mode::Netascii),
             "octet" => Ok(Mode::Octet),
             "mail" => Ok(Mode::Mail),
-            _ => Err(ErrorKind::InvalidMode.into()),
+            _ => Err(Error::InvalidMode),
         }
     }
 }
@@ -265,239 +316,324 @@ impl FromStr for Mode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use matches::{assert_matches, matches};
 
     #[test]
     fn check_rrq() {
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::default()))
+
+        assert_matches!(packet, Ok(Packet::Rrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Netascii,
+                            opts: Opts::default()
+                        }
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x01abc\0netascii\0".to_vec())
+            b"\x00\x01abc\0netascii\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascII\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::Rrq("abc".to_string(), Mode::Netascii, Opts::default()))
+
+        assert_matches!(packet, Ok(Packet::Rrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Netascii,
+                            opts: Opts::default()
+                        }
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x01abc\0netascii\0".to_vec())
+            b"\x00\x01abc\0netascii\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii\0more");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascii");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x01abc\0netascXX\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(
             b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0",
         );
-        assert_eq!(
-            packet,
-            Ok(Packet::Rrq(
-                "abc".to_string(),
-                Mode::Netascii,
-                Opts {
-                    block_size: Some(123),
-                    timeout: Some(3),
-                    transfer_size: Some(5556)
-                }
-            ))
+
+        assert_matches!(packet, Ok(Packet::Rrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Netascii,
+                            opts: Opts {
+                                block_size: Some(123),
+                                timeout: Some(3),
+                                transfer_size: Some(5556)
+                            }
+                        }
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0".to_vec())
+            b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0"
+                .to_vec()
         );
 
         let packet = Packet::from_bytes(
             b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\0",
         );
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet =
             Packet::from_bytes(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
     fn check_wrq() {
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::default()))
+
+        assert_matches!(packet, Ok(Packet::Wrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Octet,
+                            opts: Opts::default()
+                        }
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x02abc\0octet\0".to_vec())
+            b"\x00\x02abc\0octet\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0OCTet\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::Wrq("abc".to_string(), Mode::Octet, Opts::default()))
+
+        assert_matches!(packet, Ok(Packet::Wrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Octet,
+                            opts: Opts::default()
+                        }
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x02abc\0octet\0".to_vec())
+            b"\x00\x02abc\0octet\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0more");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octet");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x02abc\0octex\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(
             b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0",
         );
-        assert_eq!(
-            packet,
-            Ok(Packet::Wrq(
-                "abc".to_string(),
-                Mode::Octet,
-                Opts {
-                    block_size: Some(123),
-                    timeout: Some(3),
-                    transfer_size: Some(5556)
-                }
-            ))
+
+        assert_matches!(packet, Ok(Packet::Wrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Octet,
+                            opts: Opts {
+                                block_size: Some(123),
+                                timeout: Some(3),
+                                transfer_size: Some(5556)
+                            }
+                        }
         );
+
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0"
-                .to_vec())
+            b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0"
+                .to_vec()
         );
 
         let packet =
             Packet::from_bytes(b"\x00\x02abc\0netascii\0blksizeX\0123\0");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
     fn check_data() {
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09abcde");
-        assert_eq!(packet, Ok(Packet::Data(9, b"abcde".to_vec())));
+        assert_matches!(packet, Ok(Packet::Data(9, ref data)) if &data[..] == b"abcde");
+
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x03\x00\x09abcde".to_vec())
+            b"\x00\x03\x00\x09abcde".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x03\x00\x09");
-        assert_eq!(packet, Ok(Packet::Data(9, b"".to_vec())));
-        assert_eq!(
-            packet.unwrap().to_bytes(),
-            Ok(b"\x00\x03\x00\x09".to_vec())
-        );
+        assert_matches!(packet, Ok(Packet::Data(9, ref data)) if data.is_empty());
+        assert_eq!(packet.unwrap().to_bytes(), b"\x00\x03\x00\x09".to_vec());
     }
 
     #[test]
     fn check_ack() {
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09");
-        assert_eq!(packet, Ok(Packet::Ack(9)));
-        assert_eq!(
-            packet.unwrap().to_bytes(),
-            Ok(b"\x00\x04\x00\x09".to_vec())
-        );
+        assert_matches!(packet, Ok(Packet::Ack(9)));
+        assert_eq!(packet.unwrap().to_bytes(), b"\x00\x04\x00\x09".to_vec());
 
         let packet = Packet::from_bytes(b"\x00\x04\x00");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x04\x00\x09a");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
     fn check_error() {
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0");
-        assert_eq!(packet, Ok(Packet::Error(8, "msg".to_string())));
+        assert_matches!(packet, Ok(Packet::Error(8, ref errmsg)) if errmsg == "msg");
         assert_eq!(
             packet.unwrap().to_bytes(),
-            Ok(b"\x00\x05\x00\x08msg\0".to_vec())
+            b"\x00\x05\x00\x08msg\0".to_vec()
         );
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00\x08");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
     #[test]
     fn check_oack() {
         let packet = Packet::from_bytes(b"\x00\x06");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: None,
-                timeout: None,
-                transfer_size: None
-            }))
-        );
+        assert_matches!(packet, Ok(Packet::OAck(ref opts)) if opts == &Opts::default());
 
         let packet = Packet::from_bytes(b"\x00\x06blksize\0123\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: Some(123),
-                timeout: None,
-                transfer_size: None
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: Some(123),
+                            timeout: None,
+                            transfer_size: None
+                        }
         );
 
         let packet = Packet::from_bytes(b"\x00\x06timeout\03\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: None,
-                timeout: Some(3),
-                transfer_size: None
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: None,
+                            timeout: Some(3),
+                            transfer_size: None
+                        }
         );
 
         let packet = Packet::from_bytes(b"\x00\x06tsize\05556\0");
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: None,
-                timeout: None,
-                transfer_size: Some(5556),
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: None,
+                            timeout: None,
+                            transfer_size: Some(5556),
+                        }
         );
 
         let packet = Packet::from_bytes(
             b"\x00\x06tsize\05556\0blksize\0123\0timeout\03\0",
         );
-        assert_eq!(
-            packet,
-            Ok(Packet::OAck(Opts {
-                block_size: Some(123),
-                timeout: Some(3),
-                transfer_size: Some(5556),
-            }))
+        assert_matches!(packet, Ok(Packet::OAck(ref opts))
+                        if opts == &Opts {
+                            block_size: Some(123),
+                            timeout: Some(3),
+                            transfer_size: Some(5556),
+                        }
         );
     }
 
     #[test]
     fn check_packet() {
         let packet = Packet::from_bytes(b"\x00\x07");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
         let packet = Packet::from_bytes(b"\x00\x05\x00");
-        assert_eq!(packet, Err(ErrorKind::InvalidPacket.into()));
+        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
+    #[test]
+    fn check_blksize_boundaries() {
+        let (_, opt) = opts(b"blksize\07\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: None,
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"blksize\08\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: Some(8),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"blksize\065464\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: Some(65464),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"blksize\065465\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                block_size: None,
+                ..Opts::default()
+            }
+        );
+    }
+
+    #[test]
+    fn check_timeout_boundaries() {
+        let (_, opt) = opts(b"timeout\00\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: None,
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"timeout\01\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: Some(1),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"timeout\0255\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: Some(255),
+                ..Opts::default()
+            }
+        );
+
+        let (_, opt) = opts(b"timeout\0256\0").unwrap();
+        assert_eq!(
+            opt,
+            Opts {
+                timeout: None,
+                ..Opts::default()
+            }
+        );
+    }
 }

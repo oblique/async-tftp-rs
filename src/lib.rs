@@ -1,12 +1,14 @@
-#[macro_use]
-extern crate nom;
+#![feature(async_await)]
+// false positive: https://github.com/rust-lang/rust-clippy/issues/3988
+#![allow(clippy::needless_lifetimes)]
 
-mod block_stream;
-mod codec;
 mod error;
+mod handle;
 mod packet;
+mod read_req;
 mod server;
+mod utils;
 
 pub use crate::error::*;
-pub use crate::packet::*;
+pub use crate::handle::*;
 pub use crate::server::*;
