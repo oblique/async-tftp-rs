@@ -2,13 +2,13 @@
 // false positive: https://github.com/rust-lang/rust-clippy/issues/3988
 #![allow(clippy::needless_lifetimes)]
 
-mod async_server;
 mod error;
 mod handle;
 mod packet;
 mod read_req;
+mod server;
 mod utils;
 
-pub use crate::async_server::*;
 pub use crate::error::*;
 pub use crate::handle::*;
+pub use crate::server::*;

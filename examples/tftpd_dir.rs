@@ -30,7 +30,7 @@ impl tftp::ReadHandle for Handler {
 
 #[runtime::main]
 async fn main() -> Result<(), tftp::Error> {
-    let tftpd = AsyncTftpServer::bind(Handler::new(), "0.0.0.0:4444")?;
+    let tftpd = AsyncTftpServer::bind(Handler::new(), "0.0.0.0:6969")?;
     println!("Listening on: {}", tftpd.local_addr()?);
     tftpd.serve().await
 }
