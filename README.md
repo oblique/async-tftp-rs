@@ -1,3 +1,10 @@
+## Todo
+
+- [x] Server (RRQ)
+- [ ] Server (WRQ)
+- [ ] Client (RRQ)
+- [ ] Client (WRQ)
+
 ## RFCs
 
 * [RFC 1350](https://tools.ietf.org/html/rfc1350)
