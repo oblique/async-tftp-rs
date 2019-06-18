@@ -1,5 +1,6 @@
 use bytes::BufMut;
 use std::io;
+use std::result::Result as StdResult;
 use std::str::{self, FromStr};
 
 use nom::{
@@ -256,6 +257,7 @@ impl From<Error> for Packet {
             Error::InvalidMode | Error::InvalidPacket => {
                 (ERR_INVALID_TFTP, "Illegal TFTP operation".to_string())
             }
+            Error::Bind(_) => unreachable!(),
         };
 
         Packet::Error(err_id, err_msg)

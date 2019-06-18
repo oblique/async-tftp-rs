@@ -13,6 +13,7 @@ futures-preview = { version = "=0.3.0-alpha.16", features = ["compat"] }
 runtime = "=0.3.0-alpha.4"
 futures-timer = "0.1"
 matches = "0.1.8"
+log = "0.4.6"
 
 [dev-dependencies]
 rand = "0.6.5"
