@@ -1,6 +1,6 @@
 use futures::future::select_all;
 use futures::FutureExt;
-use log::error;
+use log::trace;
 use runtime::net::UdpSocket;
 use runtime::task::JoinHandle;
 use std::collections::HashSet;
@@ -11,40 +11,44 @@ use crate::error::*;
 use crate::handle::*;
 use crate::packet::*;
 use crate::read_req::*;
+use crate::write_req::*;
 
 pub struct AsyncTftpServer<H>
 where
-    H: ReadHandle,
+    H: Handle,
 {
     socket: Option<UdpSocket>,
-    read_handle: H,
+    handler: H,
     reqs_in_progress: HashSet<SocketAddr>,
 }
 
+/// This contains all results of the futures that are passed in `select_all`.
 enum FutResults {
+    /// Result of `recv_from` function.
     RecvFrom(Result<(usize, SocketAddr)>, Vec<u8>, UdpSocket),
+    /// Result of `req_finished` function.
     ReqFinished(SocketAddr),
 }
 
 impl<H> AsyncTftpServer<H>
 where
-    H: ReadHandle,
+    H: Handle,
 {
-    pub fn bind<A>(read_handle: H, addr: A) -> Result<Self>
+    pub fn bind<A>(handler: H, addr: A) -> Result<Self>
     where
         A: ToSocketAddrs,
     {
         Ok(AsyncTftpServer {
             socket: Some(UdpSocket::bind(addr)?),
-            read_handle,
+            handler,
             reqs_in_progress: HashSet::new(),
         })
     }
 
-    pub fn with_socket(socket: UdpSocket, read_handle: H) -> Result<Self> {
+    pub fn with_socket(handler: H, socket: UdpSocket) -> Result<Self> {
         Ok(AsyncTftpServer {
             socket: Some(socket),
-            read_handle,
+            handler,
             reqs_in_progress: HashSet::new(),
         })
     }
@@ -60,86 +64,120 @@ where
         let socket =
             self.socket.take().expect("tftp not initialized correctly");
 
-        let recv_fut = recv_from(socket, buf).boxed();
-        let mut select_fut = select_all(iter::once(recv_fut));
+        // Await for the first request
+        let recv_req_fut = recv_from(socket, buf).boxed();
+        let mut select_fut = select_all(iter::once(recv_req_fut));
 
         loop {
-            let (res, _index, mut remaining) = select_fut.await;
+            let (res, _index, mut remaining_futs) = select_fut.await;
 
             match res {
                 FutResults::RecvFrom(res, buf, socket) => {
                     let (len, peer) = res?;
 
-                    match self.handle_req_packet(peer, &buf[..len]) {
-                        Ok(Some(handle)) => {
-                            let fin_fut = req_finished(handle).boxed();
-                            remaining.push(fin_fut);
-                        }
-                        // Request already in progress
-                        Ok(None) => {}
-                        Err(e) => send_error(e, peer).await?,
+                    if let Some(handle) =
+                        self.handle_req_packet(peer, &buf[..len]).await
+                    {
+                        // Put a future for finished request in the awaiting list
+                        let fin_fut = req_finished(handle).boxed();
+                        remaining_futs.push(fin_fut);
                     }
 
-                    let recv_fut = recv_from(socket, buf).boxed();
-                    remaining.push(recv_fut);
+                    // Await for another request
+                    let recv_req_fut = recv_from(socket, buf).boxed();
+                    remaining_futs.push(recv_req_fut);
                 }
                 FutResults::ReqFinished(peer) => {
+                    // Request is served
                     self.reqs_in_progress.remove(&peer);
                 }
             }
 
-            select_fut = select_all(remaining.into_iter());
+            select_fut = select_all(remaining_futs.into_iter());
         }
     }
 
-    fn handle_req_packet(
-        &mut self,
+    async fn handle_req_packet<'a>(
+        &'a mut self,
         peer: SocketAddr,
-        data: &[u8],
-    ) -> Result<Option<JoinHandle<SocketAddr>>> {
+        data: &'a [u8],
+    ) -> Option<JoinHandle<SocketAddr>> {
         let packet = match Packet::from_bytes(data) {
-            Ok(x) => x,
+            Ok(packet) => match packet {
+                Packet::Rrq(_) | Packet::Wrq(_) => packet,
+                // Ignore packets that are not requests
+                _ => return None,
+            },
             // Ignore invalid packets
-            Err(_) => return Ok(None),
+            Err(_) => return None,
         };
+
+        if !self.reqs_in_progress.insert(peer) {
+            // Ignore pending requests
+            return None;
+        }
 
         let res = match packet {
             Packet::Rrq(req) => self.handle_rrq(peer, req),
-            Packet::Wrq(_req) => {
-                unimplemented!();
-            }
-            // Ignore packets that are not requests
-            _ => return Ok(None),
+            Packet::Wrq(req) => self.handle_wrq(peer, req),
+            // Any other packet types are already handled above
+            _ => unreachable!(),
         };
 
-        if let Err(ref e) = res {
-            if let Error::Bind(e) = e {
-                error!("tftp: Failed to bind socket: {}", e);
-                return Ok(None);
+        match res {
+            Ok(handle) => Some(handle),
+            Err(e) => {
+                trace!(
+                    "Failed to handle request for peer {}. Error: {}",
+                    peer,
+                    e
+                );
+
+                // Send the error and ignore errors while sending it.
+                let _ = send_error(e, peer).await;
+
+                // Request is served, with an error.
+                self.reqs_in_progress.remove(&peer);
+                None
             }
         }
-
-        res
     }
 
     fn handle_rrq(
         &mut self,
         peer: SocketAddr,
         req: RwReq,
-    ) -> Result<Option<JoinHandle<SocketAddr>>> {
-        if self.reqs_in_progress.insert(peer) {
-            let (reader, size) = self.read_handle.open(&req.filename)?;
-            let mut read_req = ReadRequest::init(reader, size, peer, req)?;
+    ) -> Result<JoinHandle<SocketAddr>> {
+        trace!("RRQ (peer: {}) - {:?}", peer, req);
 
-            let handle = runtime::spawn(async move {
-                read_req.handle().await;
-                peer
-            });
+        let (reader, size) = self.handler.read_open(&req.filename)?;
+        let mut read_req = ReadRequest::init(reader, size, peer, req)?;
 
-            Ok(Some(handle))
-        } else {
-            Ok(None)
-        }
+        let handle = runtime::spawn(async move {
+            read_req.handle().await;
+            peer
+        });
+
+        Ok(handle)
+    }
+
+    fn handle_wrq(
+        &mut self,
+        peer: SocketAddr,
+        req: RwReq,
+    ) -> Result<JoinHandle<SocketAddr>> {
+        trace!("WRQ (peer: {}) - {:?}", peer, req);
+
+        let writer =
+            self.handler.write_open(&req.filename, req.opts.transfer_size)?;
+        let mut write_req = WriteRequest::init(writer, peer, req)?;
+
+        let handle = runtime::spawn(async move {
+            write_req.handle().await;
+            peer
+        });
+
+        Ok(handle)
     }
 }
 

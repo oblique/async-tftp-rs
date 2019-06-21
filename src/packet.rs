@@ -1,4 +1,5 @@
 use bytes::BufMut;
+use std::borrow::Cow;
 use std::io;
 use std::result::Result as StdResult;
 use std::str::{self, FromStr};
@@ -21,16 +22,16 @@ const ERR_NOT_DEFINED: u16 = 0;
 const ERR_NOT_FOUNT: u16 = 1;
 const ERR_PERM_DENIED: u16 = 2;
 const ERR_FULL_DISK: u16 = 3;
-const ERR_INVALID_TFTP: u16 = 4;
+const ERR_INVALID_OP: u16 = 4;
 const ERR_ALREADY_EXISTS: u16 = 6;
 
 #[derive(Debug, PartialEq)]
-pub enum Packet {
+pub enum Packet<'a> {
     Rrq(RwReq),
     Wrq(RwReq),
-    Data(u16, Vec<u8>),
+    Data(u16, &'a [u8]),
     Ack(u16),
-    Error(u16, String),
+    Error(u16, Cow<'a, str>),
     OAck(Opts),
 }
 
@@ -131,7 +132,7 @@ named!(data<&[u8], Packet>,
         block: be_u16 >>
         data: rest >>
 
-        (Packet::Data(block, data.to_vec()))
+        (Packet::Data(block, data))
     )
 );
 
@@ -148,7 +149,7 @@ named!(error<&[u8], Packet>,
         code: be_u16 >>
         msg: nul_str >>
 
-        (Packet::Error(code, msg.to_owned()))
+        (Packet::Error(code, Cow::Borrowed(msg)))
     )
 );
 
@@ -175,7 +176,7 @@ named!(packet<&[u8], Packet>,
     )
 );
 
-impl Packet {
+impl<'a> Packet<'a> {
     pub fn from_bytes(data: &[u8]) -> Result<Packet> {
         let (rest, p) = packet(data).map_err(|_| Error::InvalidPacket)?;
 
@@ -210,7 +211,7 @@ impl Packet {
             Packet::Data(block, data) => {
                 buf.put_u16_be(DATA);
                 buf.put_u16_be(*block);
-                buf.put(data);
+                buf.put(data.as_ref());
             }
             Packet::Ack(block) => {
                 buf.put_u16_be(ACK);
@@ -219,7 +220,7 @@ impl Packet {
             Packet::Error(code, msg) => {
                 buf.put_u16_be(ERROR);
                 buf.put_u16_be(*code);
-                buf.put(msg);
+                buf.put(msg.as_ref());
                 buf.put_u8(0);
             }
             Packet::OAck(opts) => {
@@ -232,32 +233,35 @@ impl Packet {
     }
 }
 
-impl From<Error> for Packet {
+impl<'a> From<Error> for Packet<'a> {
     fn from(err: Error) -> Self {
         let (err_id, err_msg) = match err {
             Error::Io(err) => match err.kind() {
                 io::ErrorKind::NotFound => {
-                    (ERR_NOT_FOUNT, "File not found".to_string())
+                    (ERR_NOT_FOUNT, "File not found".into())
                 }
                 io::ErrorKind::PermissionDenied => {
-                    (ERR_PERM_DENIED, "Access violation".to_string())
+                    (ERR_PERM_DENIED, "Access violation".into())
                 }
-                io::ErrorKind::WriteZero => (
-                    ERR_FULL_DISK,
-                    "Disk full or allocation exceeded".to_string(),
-                ),
+                io::ErrorKind::WriteZero => {
+                    (ERR_FULL_DISK, "Disk full or allocation exceeded".into())
+                }
                 io::ErrorKind::AlreadyExists => {
-                    (ERR_ALREADY_EXISTS, "File already exists".to_string())
+                    (ERR_ALREADY_EXISTS, "File already exists".into())
                 }
                 _ => match err.raw_os_error() {
-                    Some(rc) => (ERR_NOT_DEFINED, format!("IO error: {}", rc)),
-                    None => (ERR_NOT_DEFINED, "Unknown IO error".to_string()),
+                    Some(rc) => {
+                        (ERR_NOT_DEFINED, format!("IO error: {}", rc).into())
+                    }
+                    None => (ERR_NOT_DEFINED, "Unknown IO error".into()),
                 },
             },
-            Error::InvalidMode | Error::InvalidPacket => {
-                (ERR_INVALID_TFTP, "Illegal TFTP operation".to_string())
+            Error::InvalidMode
+            | Error::InvalidPacket
+            | Error::InvalidOperation => {
+                (ERR_INVALID_OP, "Illegal TFTP operation".into())
             }
-            Error::Bind(_) => unreachable!(),
+            _ => (ERR_NOT_DEFINED, "Unknown error".into()),
         };
 
         Packet::Error(err_id, err_msg)

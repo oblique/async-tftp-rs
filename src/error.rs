@@ -10,6 +10,9 @@ pub enum Error {
     #[fail(display = "Invalid packet")]
     InvalidPacket,
 
+    #[fail(display = "Invalid operation")]
+    InvalidOperation,
+
     #[fail(display = "IO Error: {}", _0)]
     Io(std::io::Error),
 

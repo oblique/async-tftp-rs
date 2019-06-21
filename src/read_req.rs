@@ -1,12 +1,13 @@
 use futures::io::{AsyncRead, AsyncReadExt};
 use futures::{select, FutureExt};
+use futures_timer::Delay;
+use log::trace;
 use runtime::net::UdpSocket;
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use crate::error::*;
 use crate::packet::*;
-use crate::utils::delay;
 
 const DEFAULT_TIMEOUT_SECS: u8 = 3;
 const DEFAULT_BLOCK_SIZE: u16 = 512;
@@ -63,6 +64,7 @@ where
 
         // Reply with OACK if needed
         if !oack_opts.all_none() {
+            trace!("RRQ (peer: {}) - Send OACK: {:?}", self.peer, oack_opts);
             let packet = Packet::OAck(oack_opts).to_bytes();
             self.send(&packet[..]).await?;
         }
@@ -76,7 +78,7 @@ where
             let last_block = block.len() < block_size;
 
             self.block_id = self.block_id.wrapping_add(1);
-            let packet = Packet::Data(self.block_id, block).to_bytes();
+            let packet = Packet::Data(self.block_id, &block[..]).to_bytes();
             self.send(&packet[..]).await?;
 
             if last_block {
@@ -84,22 +86,32 @@ where
             }
         }
 
+        trace!("RRQ (peer: {}) - Request served successfully", self.peer);
         Ok(())
     }
 
     async fn send<'a>(&'a mut self, packet: &'a [u8]) -> Result<()> {
         let timeout =
             self.req.opts.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS).into();
+        let peer = self.peer;
+        let block_id = self.block_id;
 
         loop {
             self.socket.send_to(&packet[..], self.peer).await?;
 
             let mut recv_ack_fut = self.recv_ack().boxed().fuse();
-            let mut timeout_fut = delay(Duration::from_secs(timeout));
+            let mut timeout_fut =
+                Delay::new(Duration::from_secs(timeout)).fuse();
 
             select! {
-                _ = recv_ack_fut => break,
-                _ = timeout_fut => continue,
+                _ = recv_ack_fut => {
+                    trace!("RRQ (peer: {}, block_id: {}) - Received ACK", peer, block_id);
+                    break;
+                }
+                _ = timeout_fut => {
+                    trace!("RRQ (peer: {}, block_id: {}) - Timeout", peer, block_id);
+                    continue;
+                }
             };
         }
 

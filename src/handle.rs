@@ -1,9 +1,16 @@
-use futures::AsyncRead;
+use futures::{AsyncRead, AsyncWrite};
 
 use crate::error::Result;
 
-pub trait ReadHandle: Send {
+pub trait Handle: Send {
     type Reader: AsyncRead + Unpin + Send + 'static;
+    type Writer: AsyncWrite + Unpin + Send + 'static;
 
-    fn open(&mut self, path: &str) -> Result<(Self::Reader, Option<u64>)>;
+    fn read_open(&mut self, path: &str) -> Result<(Self::Reader, Option<u64>)>;
+
+    fn write_open(
+        &mut self,
+        path: &str,
+        size: Option<u64>,
+    ) -> Result<Self::Writer>;
 }

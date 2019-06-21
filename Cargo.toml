@@ -9,11 +9,13 @@ license = "MIT"
 failure = "0.1"
 bytes = "0.4.12"
 nom = "4.2.3"
-futures-preview = { version = "=0.3.0-alpha.16", features = ["compat"] }
-runtime = "=0.3.0-alpha.4"
-futures-timer = "0.1"
+futures-preview = { version = "=0.3.0-alpha.17", features = ["compat",
+    "async-await", "nightly"] }
+runtime = "=0.3.0-alpha.6"
+futures-timer = "0.2.1"
 matches = "0.1.8"
 log = "0.4.6"
 
 [dev-dependencies]
-rand = "0.6.5"
+rand = "0.7.0"
+simplelog = "0.6.0"
