@@ -5,6 +5,7 @@
 mod error;
 mod handle;
 mod packet;
+mod parse;
 mod read_req;
 mod server;
 mod write_req;

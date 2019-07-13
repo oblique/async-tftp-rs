@@ -15,6 +15,8 @@ runtime = "=0.3.0-alpha.6"
 futures-timer = "0.2.1"
 matches = "0.1.8"
 log = "0.4.6"
+enum-primitive-derive = "0.1.2"
+num-traits = "0.2.8"
 
 [dev-dependencies]
 rand = "0.7.0"
