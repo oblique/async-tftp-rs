@@ -4,9 +4,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Fail)]
 pub enum Error {
-    #[fail(display = "Invalid mode")]
-    InvalidMode,
-
     #[fail(display = "Invalid packet")]
     InvalidPacket,
 
@@ -23,5 +20,11 @@ pub enum Error {
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Error {
         Error::Io(error)
+    }
+}
+
+impl<'a> From<nom::Err<(&'a [u8], nom::error::ErrorKind)>> for Error {
+    fn from(_error: nom::Err<(&'a [u8], nom::error::ErrorKind)>) -> Error {
+        Error::InvalidPacket
     }
 }

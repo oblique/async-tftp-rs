@@ -1,13 +1,15 @@
 use bytes::BufMut;
 use std::borrow::Cow;
 use std::io;
-use std::result::Result as StdResult;
 use std::str::{self, FromStr};
 
-use nom::{
-    alt_complete, be_u16, call, do_parse, error_position, many0_count, map_res,
-    named, named_args, rest, switch, tag, tag_no_case, take_till,
-};
+use nom::branch::alt;
+use nom::bytes::complete::{tag, tag_no_case, take_till};
+use nom::combinator::{map, map_opt, map_res, rest};
+use nom::multi::many0;
+use nom::number::complete::be_u16;
+use nom::sequence::tuple;
+use nom::IResult;
 
 use crate::error::*;
 
@@ -49,6 +51,14 @@ pub struct RwReq {
     pub opts: Opts,
 }
 
+#[derive(Debug)]
+enum Opt<'a> {
+    BlkSize(u16),
+    Timeout(u8),
+    Tsize(u64),
+    Invalid(&'a str, &'a str),
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Opts {
     pub block_size: Option<u16>,
@@ -56,136 +66,146 @@ pub struct Opts {
     pub transfer_size: Option<u64>,
 }
 
-named!(nul_str<&[u8], &str>,
-    do_parse!(
-        s: map_res!(take_till!(|ch| ch == b'\0'), str::from_utf8) >>
-        tag!("\0") >>
-
-        (s)
-    )
-);
-
-named!(mode<&[u8], Mode>,
-     do_parse!(
-        mode: map_res!(map_res!(alt_complete!(
-            tag_no_case!("netascii") |
-            tag_no_case!("octet") |
-            tag_no_case!("mail")
-        ), str::from_utf8), Mode::from_str) >>
-        tag!("\0") >>
-
-        (mode)
-    )
-);
-
-named_args!(parse_opts<'a>(opts: &mut Opts)<&'a [u8], usize>,
-    many0_count!(alt_complete!(
-        do_parse!(
-            tag_no_case!("blksize\0") >>
-            n: map_res!(nul_str, u16::from_str) >>
-
-            (opts.block_size = Some(n).filter(|x| *x >= 8 && *x <= 65464))
-        ) |
-        do_parse!(
-            tag_no_case!("timeout\0") >>
-            n: map_res!(nul_str, u8::from_str) >>
-
-            (opts.timeout = Some(n).filter(|x| *x >= 1))
-        ) |
-        do_parse!(
-            tag_no_case!("tsize\0") >>
-            n: map_res!(nul_str, u64::from_str) >>
-
-            (opts.transfer_size = Some(n))
-        )
-    ))
-);
-
-fn opts(i: &[u8]) -> nom::IResult<&[u8], Opts> {
-    let mut opts = Opts::default();
-    let (i, _) = parse_opts(i, &mut opts)?;
-    Ok((i, opts))
+fn nul_str(input: &[u8]) -> IResult<&[u8], &str> {
+    map_res(
+        tuple((take_till(|c| c == b'\0'), tag(b"\0"))),
+        |(s, _): (&[u8], _)| str::from_utf8(s),
+    )(input)
 }
 
-named!(rrq<&[u8], Packet>,
-    do_parse!(
-        filename: nul_str >>
-        mode: mode >>
-        opts: opts >>
+fn parse_mode(input: &[u8]) -> IResult<&[u8], Mode> {
+    alt((
+        map(tag_no_case(b"netascii\0"), |_| Mode::Netascii),
+        map(tag_no_case(b"octet\0"), |_| Mode::Octet),
+        map(tag_no_case(b"mail\0"), |_| Mode::Mail),
+    ))(input)
+}
 
-        (Packet::Rrq(RwReq { filename: filename.to_owned(), mode, opts }))
-    )
-);
+fn parse_opt_blksize(input: &[u8]) -> IResult<&[u8], Opt> {
+    map_opt(tuple((tag_no_case(b"blksize\0"), nul_str)), |(_, n): (_, &str)| {
+        u16::from_str(n)
+            .ok()
+            .filter(|n| *n >= 8 && *n <= 65464)
+            .map(Opt::BlkSize)
+    })(input)
+}
 
-named!(wrq<&[u8], Packet>,
-    do_parse!(
-        filename: nul_str >>
-        mode: mode >>
-        opts: opts >>
+fn parse_opt_timeout(input: &[u8]) -> IResult<&[u8], Opt> {
+    map_opt(tuple((tag_no_case(b"timeout\0"), nul_str)), |(_, n): (_, &str)| {
+        u8::from_str(n).ok().filter(|n| *n >= 1).map(Opt::Timeout)
+    })(input)
+}
 
-        (Packet::Wrq(RwReq { filename: filename.to_owned(), mode, opts }))
-    )
-);
+fn parse_opt_tsize(input: &[u8]) -> IResult<&[u8], Opt> {
+    map_opt(tuple((tag_no_case(b"tsize\0"), nul_str)), |(_, n): (_, &str)| {
+        u64::from_str(n).ok().map(Opt::Tsize)
+    })(input)
+}
 
-named!(data<&[u8], Packet>,
-    do_parse!(
-        block: be_u16 >>
-        data: rest >>
+fn parse_opts(input: &[u8]) -> IResult<&[u8], Opts> {
+    many0(alt((
+        parse_opt_blksize,
+        parse_opt_timeout,
+        parse_opt_tsize,
+        map(tuple((nul_str, nul_str)), |(k, v)| Opt::Invalid(k, v)),
+    )))(input)
+    .map(|(i, opt_vec)| (i, to_opts(opt_vec)))
+}
 
-        (Packet::Data(block, data))
-    )
-);
+fn to_opts(opt_vec: Vec<Opt>) -> Opts {
+    let mut opts = Opts::default();
 
-named!(ack<&[u8], Packet>,
-    do_parse!(
-        block: be_u16 >>
+    for opt in opt_vec {
+        match opt {
+            Opt::BlkSize(size) => {
+                if opts.block_size.is_none() {
+                    opts.block_size.replace(size);
+                }
+            }
+            Opt::Timeout(timeout) => {
+                if opts.timeout.is_none() {
+                    opts.timeout.replace(timeout);
+                }
+            }
+            Opt::Tsize(size) => {
+                if opts.transfer_size.is_none() {
+                    opts.transfer_size.replace(size);
+                }
+            }
+            Opt::Invalid(..) => {}
+        }
+    }
 
-        (Packet::Ack(block))
-    )
-);
+    opts
+}
 
-named!(error<&[u8], Packet>,
-    do_parse!(
-        code: be_u16 >>
-        msg: nul_str >>
+fn parse_rrq(input: &[u8]) -> IResult<&[u8], Packet> {
+    let (input, (filename, mode, opts)) =
+        tuple((nul_str, parse_mode, parse_opts))(input)?;
 
-        (Packet::Error(code, Cow::Borrowed(msg)))
-    )
-);
+    Ok((
+        input,
+        Packet::Rrq(RwReq {
+            filename: filename.to_owned(),
+            mode,
+            opts,
+        }),
+    ))
+}
 
-named!(oack<&[u8], Packet>,
-    do_parse!(
-        opts: opts >>
+fn parse_wrq(input: &[u8]) -> IResult<&[u8], Packet> {
+    let (input, (filename, mode, opts)) =
+        tuple((nul_str, parse_mode, parse_opts))(input)?;
 
-        (Packet::OAck(opts))
-    )
-);
+    Ok((
+        input,
+        Packet::Wrq(RwReq {
+            filename: filename.to_owned(),
+            mode,
+            opts,
+        }),
+    ))
+}
 
-named!(packet<&[u8], Packet>,
-    do_parse!(
-        packet: switch!(be_u16,
-            RRQ => call!(rrq) |
-            WRQ => call!(wrq) |
-            DATA => call!(data) |
-            ACK => call!(ack) |
-            ERROR => call!(error) |
-            OACK => call!(oack)
-        ) >>
+fn parse_data(input: &[u8]) -> IResult<&[u8], Packet> {
+    tuple((be_u16, rest))(input)
+        .map(|(i, (block_nr, data))| (i, Packet::Data(block_nr, data)))
+}
 
-        (packet)
-    )
-);
+fn parse_ack(input: &[u8]) -> IResult<&[u8], Packet> {
+    be_u16(input).map(|(i, block_nr)| (i, Packet::Ack(block_nr)))
+}
+
+fn parse_error(input: &[u8]) -> IResult<&[u8], Packet> {
+    tuple((be_u16, nul_str))(input)
+        .map(|(i, (code, msg))| (i, Packet::Error(code, Cow::Borrowed(msg))))
+}
+
+fn parse_oack(input: &[u8]) -> IResult<&[u8], Packet> {
+    parse_opts(input).map(|(i, opts)| (i, Packet::OAck(opts)))
+}
+
+fn parse_packet(input: &[u8]) -> Result<Packet> {
+    let (rest, packet) = match be_u16(input)? {
+        (data, RRQ) => parse_rrq(data)?,
+        (data, WRQ) => parse_wrq(data)?,
+        (data, DATA) => parse_data(data)?,
+        (data, ACK) => parse_ack(data)?,
+        (data, ERROR) => parse_error(data)?,
+        (data, OACK) => parse_oack(data)?,
+        _ => return Err(Error::InvalidPacket),
+    };
+
+    if rest.len() > 0 {
+        Err(Error::InvalidPacket)
+    } else {
+        Ok(packet)
+    }
+}
 
 impl<'a> Packet<'a> {
     pub fn from_bytes(data: &[u8]) -> Result<Packet> {
-        let (rest, p) = packet(data).map_err(|_| Error::InvalidPacket)?;
-
-        // ensure that whole packet was consumed
-        if rest.is_empty() {
-            Ok(p)
-        } else {
-            Err(Error::InvalidPacket)
-        }
+        parse_packet(data)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -256,9 +276,7 @@ impl<'a> From<Error> for Packet<'a> {
                     None => (ERR_NOT_DEFINED, "Unknown IO error".into()),
                 },
             },
-            Error::InvalidMode
-            | Error::InvalidPacket
-            | Error::InvalidOperation => {
+            Error::InvalidPacket | Error::InvalidOperation => {
                 (ERR_INVALID_OP, "Illegal TFTP operation".into())
             }
             _ => (ERR_NOT_DEFINED, "Unknown error".into()),
@@ -300,19 +318,6 @@ impl Mode {
             Mode::Netascii => "netascii",
             Mode::Octet => "octet",
             Mode::Mail => "mail",
-        }
-    }
-}
-
-impl FromStr for Mode {
-    type Err = Error;
-
-    fn from_str(s: &str) -> StdResult<Self, Self::Err> {
-        match s.to_owned().to_lowercase().as_str() {
-            "netascii" => Ok(Mode::Netascii),
-            "octet" => Ok(Mode::Octet),
-            "mail" => Ok(Mode::Mail),
-            _ => Err(Error::InvalidMode),
         }
     }
 }
@@ -392,7 +397,13 @@ mod tests {
 
         let packet =
             Packet::from_bytes(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
-        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
+        assert_matches!(packet, Ok(Packet::Rrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Netascii,
+                            opts: Opts::default()
+                        }
+        );
     }
 
     #[test]
@@ -458,9 +469,14 @@ mod tests {
                 .to_vec()
         );
 
-        let packet =
-            Packet::from_bytes(b"\x00\x02abc\0netascii\0blksizeX\0123\0");
-        assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
+        let packet = Packet::from_bytes(b"\x00\x02abc\0octet\0blksizeX\0123\0");
+        assert_matches!(packet, Ok(Packet::Wrq(ref req))
+                        if req == &RwReq {
+                            filename: "abc".to_string(),
+                            mode: Mode::Octet,
+                            opts: Opts::default()
+                        }
+        );
     }
 
     #[test]
@@ -565,36 +581,36 @@ mod tests {
 
     #[test]
     fn check_blksize_boundaries() {
-        let (_, opt) = opts(b"blksize\07\0").unwrap();
+        let (_, opts) = parse_opts(b"blksize\07\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 block_size: None,
                 ..Opts::default()
             }
         );
 
-        let (_, opt) = opts(b"blksize\08\0").unwrap();
+        let (_, opts) = parse_opts(b"blksize\08\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 block_size: Some(8),
                 ..Opts::default()
             }
         );
 
-        let (_, opt) = opts(b"blksize\065464\0").unwrap();
+        let (_, opts) = parse_opts(b"blksize\065464\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 block_size: Some(65464),
                 ..Opts::default()
             }
         );
 
-        let (_, opt) = opts(b"blksize\065465\0").unwrap();
+        let (_, opts) = parse_opts(b"blksize\065465\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 block_size: None,
                 ..Opts::default()
@@ -604,36 +620,36 @@ mod tests {
 
     #[test]
     fn check_timeout_boundaries() {
-        let (_, opt) = opts(b"timeout\00\0").unwrap();
+        let (_, opts) = parse_opts(b"timeout\00\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 timeout: None,
                 ..Opts::default()
             }
         );
 
-        let (_, opt) = opts(b"timeout\01\0").unwrap();
+        let (_, opts) = parse_opts(b"timeout\01\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 timeout: Some(1),
                 ..Opts::default()
             }
         );
 
-        let (_, opt) = opts(b"timeout\0255\0").unwrap();
+        let (_, opts) = parse_opts(b"timeout\0255\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 timeout: Some(255),
                 ..Opts::default()
             }
         );
 
-        let (_, opt) = opts(b"timeout\0256\0").unwrap();
+        let (_, opts) = parse_opts(b"timeout\0256\0").unwrap();
         assert_eq!(
-            opt,
+            opts,
             Opts {
                 timeout: None,
                 ..Opts::default()

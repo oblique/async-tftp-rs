@@ -8,7 +8,7 @@ license = "MIT"
 [dependencies]
 failure = "0.1"
 bytes = "0.4.12"
-nom = "4.2.3"
+nom = "5.0.0"
 futures-preview = { version = "=0.3.0-alpha.17", features = ["compat",
     "async-await", "nightly"] }
 runtime = "=0.3.0-alpha.6"
