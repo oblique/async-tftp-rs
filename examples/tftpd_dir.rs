@@ -13,18 +13,22 @@ impl Handler {
     }
 }
 
-/// Read-only handler
 impl tftp::Handle for Handler {
     // Note that `AllowStdIo` is synchronous and makes event loop to block.
     // If you want to convert a synchronous to trully asynchronous, you can use
     // crates such as `sluice`.
     type Reader = AllowStdIo<File>;
-    type Writer = std::io::Sink;
+    type Writer = AllowStdIo<File>;
 
     fn read_open(
         &mut self,
         path: &str,
     ) -> tftp::Result<(Self::Reader, Option<u64>)> {
+        // Avoid directory traversal attacks
+        if path.contains("..") {
+            return Err(tftp::Error::InvalidOperation);
+        }
+
         let file = File::open(path)?;
         let len = file.metadata().ok().map(|m| m.len());
         Ok((AllowStdIo::new(file), len))
@@ -32,10 +36,16 @@ impl tftp::Handle for Handler {
 
     fn write_open(
         &mut self,
-        _path: &str,
+        path: &str,
         _size: Option<u64>,
     ) -> tftp::Result<Self::Writer> {
-        Err(tftp::Error::InvalidOperation)
+        // Avoid directory traversal attacks
+        if path.contains("..") {
+            return Err(tftp::Error::InvalidOperation);
+        }
+
+        let file = File::create(path)?;
+        Ok(AllowStdIo::new(file))
     }
 }
 

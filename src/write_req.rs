@@ -1,4 +1,5 @@
-use futures::io::AsyncWrite;
+use bytes::{Bytes, BytesMut};
+use futures::io::{AsyncWrite, AsyncWriteExt};
 use runtime::net::UdpSocket;
 use std::net::SocketAddr;
 
@@ -10,7 +11,7 @@ where
     W: AsyncWrite + Send,
 {
     peer: SocketAddr,
-    req: RwReq,
+    _req: RwReq,
     socket: UdpSocket,
     block_id: u16,
     writer: W,
@@ -23,7 +24,7 @@ where
     pub fn init(writer: W, peer: SocketAddr, req: RwReq) -> Result<Self> {
         Ok(WriteRequest {
             peer,
-            req,
+            _req: req,
             socket: UdpSocket::bind("0.0.0.0:0").map_err(Error::Bind)?,
             block_id: 0,
             writer,
@@ -40,6 +41,60 @@ where
     }
 
     async fn try_handle(&mut self) -> Result<()> {
-        unimplemented!();
+        let ack = Packet::Ack(self.block_id).to_bytes();
+        self.socket.send_to(&ack[..], self.peer).await?;
+
+        loop {
+            // recv data
+            self.block_id = self.block_id.wrapping_add(1);
+            let data = self.recv_data().await?;
+
+            // write data
+            self.writer.write_all(&data[..]).await?;
+
+            // ack
+            let ack = Packet::Ack(self.block_id).to_bytes();
+            // TODO: resend on timeout
+            self.socket.send_to(&ack[..], self.peer).await?;
+
+            if data.len() < 512 {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn recv_data(&mut self) -> Result<Bytes> {
+        let mut buf = BytesMut::new();
+        buf.resize(4096, 0);
+
+        let (data_pos, data_len) = loop {
+            let (len, peer) = self.socket.recv_from(&mut buf[..]).await?;
+
+            // ignore packets from any other peers
+            if peer != self.peer {
+                continue;
+            }
+
+            let packet = Packet::from_bytes(&buf[..len])?;
+
+            // TODO: handle Packet::Error as error::Error
+            if let Packet::Data(block_id, data) = packet {
+                // ignore packet with wrong block id
+                if block_id != self.block_id {
+                    continue;
+                }
+
+                // position of data within the original buffer
+                let data_pos = data.as_ptr() as usize - buf.as_ptr() as usize;
+                break (data_pos, data.len());
+            }
+        };
+
+        buf.advance(data_pos);
+        buf.truncate(data_len);
+
+        Ok(buf.freeze())
     }
 }
