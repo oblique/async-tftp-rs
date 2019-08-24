@@ -29,10 +29,10 @@ pub(crate) fn parse_packet(input: &[u8]) -> Result<Packet> {
         (data, PacketType::OAck) => parse_oack(data)?,
     };
 
-    if rest.len() > 0 {
-        Err(Error::InvalidPacket)
-    } else {
+    if rest.is_empty() {
         Ok(packet)
+    } else {
+        Err(Error::InvalidPacket)
     }
 }
 
@@ -44,7 +44,7 @@ fn nul_str(input: &[u8]) -> IResult<&[u8], &str> {
 }
 
 fn parse_packet_type(input: &[u8]) -> IResult<&[u8], PacketType> {
-    map_opt(be_u16, |s| PacketType::from_u16(s))(input)
+    map_opt(be_u16, PacketType::from_u16)(input)
 }
 
 fn parse_mode(input: &[u8]) -> IResult<&[u8], Mode> {

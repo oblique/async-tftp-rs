@@ -90,7 +90,7 @@ where
         Ok(())
     }
 
-    async fn send<'a>(&'a mut self, packet: &'a [u8]) -> Result<()> {
+    async fn send(&mut self, packet: &[u8]) -> Result<()> {
         let timeout =
             self.req.opts.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS).into();
         let peer = self.peer;
