@@ -6,7 +6,6 @@ use nom::number::complete::be_u16;
 use nom::sequence::tuple;
 use nom::IResult;
 use num_traits::FromPrimitive;
-use std::borrow::Cow;
 use std::str::{self, FromStr};
 
 use crate::error::*;
@@ -152,8 +151,9 @@ fn parse_ack(input: &[u8]) -> IResult<&[u8], Packet> {
 }
 
 fn parse_error(input: &[u8]) -> IResult<&[u8], Packet> {
-    tuple((be_u16, nul_str))(input)
-        .map(|(i, (code, msg))| (i, Packet::Error(code, Cow::Borrowed(msg))))
+    tuple((be_u16, nul_str))(input).map(|(i, (code, msg))| {
+        (i, TftpError::from_code(code, Some(msg)).into())
+    })
 }
 
 fn parse_oack(input: &[u8]) -> IResult<&[u8], Packet> {

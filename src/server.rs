@@ -194,7 +194,7 @@ async fn req_finished(handle: JoinHandle<SocketAddr>) -> FutResults {
 async fn send_error(error: Error, peer: SocketAddr) -> Result<()> {
     let mut socket = UdpSocket::bind("0.0.0.0:0").map_err(Error::Bind)?;
 
-    let packet = Packet::from(error).to_bytes();
+    let packet = Packet::Error(error.into()).to_bytes();
     socket.send_to(&packet[..], peer).await?;
 
     Ok(())

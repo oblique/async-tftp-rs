@@ -1,9 +1,8 @@
-#![feature(async_await)]
-
 use futures::io::AllowStdIo;
 use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 use std::fs::File;
 use tftp::AsyncTftpServer;
+use tftp::TftpError;
 
 struct Handler {}
 
@@ -23,10 +22,10 @@ impl tftp::Handle for Handler {
     fn read_open(
         &mut self,
         path: &str,
-    ) -> tftp::Result<(Self::Reader, Option<u64>)> {
+    ) -> Result<(Self::Reader, Option<u64>), TftpError> {
         // Avoid directory traversal attacks
         if path.contains("..") {
-            return Err(tftp::Error::InvalidOperation);
+            return Err(TftpError::PermissionDenied);
         }
 
         let file = File::open(path)?;
@@ -38,10 +37,10 @@ impl tftp::Handle for Handler {
         &mut self,
         path: &str,
         _size: Option<u64>,
-    ) -> tftp::Result<Self::Writer> {
+    ) -> Result<Self::Writer, TftpError> {
         // Avoid directory traversal attacks
         if path.contains("..") {
-            return Err(tftp::Error::InvalidOperation);
+            return Err(TftpError::PermissionDenied);
         }
 
         let file = File::create(path)?;

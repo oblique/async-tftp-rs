@@ -33,7 +33,7 @@ where
 
     pub async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
-            let packet = Packet::from(e).to_bytes();
+            let packet = Packet::Error(e.into()).to_bytes();
             // Errors are never retransmitted.
             // We do not care if `send_to` resulted to an IO error.
             let _ = self.socket.send_to(&packet[..], self.peer).await;
