@@ -15,9 +15,7 @@ impl Handler {
 
 #[async_trait]
 impl tftp::Handle for Handler {
-    // Note that `AllowStdIo` is synchronous and makes event loop to block.
-    // If you want to convert a synchronous to trully asynchronous, you can use
-    // crates such as `sluice`.
+    // TODO: do not use AllowStdIo
     type Reader = AllowStdIo<File>;
     type Writer = AllowStdIo<File>;
 
