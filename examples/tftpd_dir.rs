@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use futures::io::AllowStdIo;
 use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 use std::fs::File;
@@ -12,6 +13,7 @@ impl Handler {
     }
 }
 
+#[async_trait]
 impl tftp::Handle for Handler {
     // Note that `AllowStdIo` is synchronous and makes event loop to block.
     // If you want to convert a synchronous to trully asynchronous, you can use
@@ -19,7 +21,7 @@ impl tftp::Handle for Handler {
     type Reader = AllowStdIo<File>;
     type Writer = AllowStdIo<File>;
 
-    fn read_open(
+    async fn read_open(
         &mut self,
         path: &str,
     ) -> Result<(Self::Reader, Option<u64>), TftpError> {
@@ -33,7 +35,7 @@ impl tftp::Handle for Handler {
         Ok((AllowStdIo::new(file), len))
     }
 
-    fn write_open(
+    async fn write_open(
         &mut self,
         path: &str,
         _size: Option<u64>,
@@ -59,7 +61,7 @@ async fn main() -> Result<(), tftp::Error> {
     let _ =
         TermLogger::init(LevelFilter::Trace, log_config, TerminalMode::Mixed);
 
-    let tftpd = AsyncTftpServer::bind(Handler::new(), "0.0.0.0:6969")?;
+    let tftpd = AsyncTftpServer::bind(Handler::new(), "0.0.0.0:6969").await?;
     println!("Listening on: {}", tftpd.local_addr()?);
 
     tftpd.serve().await

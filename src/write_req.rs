@@ -1,6 +1,7 @@
+use runtime::net::UdpSocket;
+
 use bytes::{Bytes, BytesMut};
 use futures::io::{AsyncWrite, AsyncWriteExt};
-use runtime::net::UdpSocket;
 use std::net::SocketAddr;
 
 use crate::error::*;
@@ -21,7 +22,7 @@ impl<W> WriteRequest<W>
 where
     W: AsyncWrite + Send + Unpin,
 {
-    pub fn init(writer: W, peer: SocketAddr, req: RwReq) -> Result<Self> {
+    pub async fn init(writer: W, peer: SocketAddr, req: RwReq) -> Result<Self> {
         Ok(WriteRequest {
             peer,
             _req: req,

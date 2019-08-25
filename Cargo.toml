@@ -13,10 +13,12 @@ futures-preview = { version = "=0.3.0-alpha.18", features = ["compat",
     "async-await", "nightly"] }
 runtime = "=0.3.0-alpha.7"
 futures-timer = "0.3.0"
+futures-locks = "0.4.0"
 matches = "0.1.8"
 log = "0.4.6"
 enum-primitive-derive = "0.1.2"
 num-traits = "0.2.8"
+async-trait = "0.1.11"
 
 [dev-dependencies]
 rand = "0.7.0"

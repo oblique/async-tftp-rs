@@ -1,8 +1,9 @@
+use runtime::net::UdpSocket;
+
 use futures::io::{AsyncRead, AsyncReadExt};
 use futures::{select, FutureExt};
 use futures_timer::Delay;
 use log::trace;
-use runtime::net::UdpSocket;
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -28,7 +29,7 @@ impl<R> ReadRequest<R>
 where
     R: AsyncRead + Send + Unpin,
 {
-    pub fn init(
+    pub async fn init(
         reader: R,
         size: Option<u64>,
         peer: SocketAddr,
