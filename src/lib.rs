@@ -4,6 +4,7 @@ mod packet;
 mod parse;
 mod read_req;
 mod server;
+mod wrappers;
 mod write_req;
 
 pub use crate::error::*;

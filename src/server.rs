@@ -1,8 +1,3 @@
-use futures::compat::Compat01As03;
-use futures_locks::Mutex;
-use runtime::net::UdpSocket;
-use runtime::task;
-
 use futures::future::select_all;
 use futures::FutureExt;
 use log::trace;
@@ -15,6 +10,7 @@ use crate::error::*;
 use crate::handle::*;
 use crate::packet::*;
 use crate::read_req::*;
+use crate::wrappers::*;
 use crate::write_req::*;
 
 pub struct AsyncTftpServer<H>
@@ -45,7 +41,7 @@ where
         A: ToSocketAddrs,
     {
         Ok(AsyncTftpServer {
-            socket: Some(UdpSocket::bind(addr)?),
+            socket: Some(udp_socket_bind(addr).await?),
             handler: Arc::new(Mutex::new(handler)),
             reqs_in_progress: HashSet::new(),
         })
@@ -154,8 +150,7 @@ where
             trace!("RRQ (peer: {}) - {:?}", peer, req);
 
             let (reader, size) = {
-                let mut handler =
-                    Compat01As03::new(task_handler.lock()).await.unwrap();
+                let mut handler = mutex_lock(&task_handler).await;
 
                 handler
                     .read_open(&req.filename)
@@ -184,8 +179,7 @@ where
             trace!("WRQ (peer: {}) - {:?}", peer, req);
 
             let writer = {
-                let mut handler =
-                    Compat01As03::new(task_handler.lock()).await.unwrap();
+                let mut handler = mutex_lock(&task_handler).await;
 
                 handler
                     .write_open(&req.filename, req.opts.transfer_size)
@@ -205,7 +199,7 @@ where
 }
 
 async fn recv_req(mut socket: UdpSocket, mut buf: Vec<u8>) -> FutResults {
-    let res = socket.recv_from(&mut buf).await.map_err(Into::into);
+    let res = socket_recv_from(&mut socket, &mut buf).await.map_err(Into::into);
     FutResults::RecvReq(res, buf, socket)
 }
 
@@ -215,10 +209,10 @@ async fn req_finished(handle: task::JoinHandle<ReqResult>) -> FutResults {
 }
 
 async fn send_error(error: Error, peer: SocketAddr) -> Result<()> {
-    let mut socket = UdpSocket::bind("0.0.0.0:0").map_err(Error::Bind)?;
+    let mut socket = udp_socket_bind("0.0.0.0:0").await.map_err(Error::Bind)?;
 
     let packet = Packet::Error(error.into()).to_bytes();
-    socket.send_to(&packet[..], peer).await?;
+    socket_send_to(&mut socket, &packet[..], peer).await?;
 
     Ok(())
 }

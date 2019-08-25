@@ -1,5 +1,3 @@
-use runtime::net::UdpSocket;
-
 use futures::io::{AsyncRead, AsyncReadExt};
 use futures::{select, FutureExt};
 use futures_timer::Delay;
@@ -9,6 +7,7 @@ use std::time::Duration;
 
 use crate::error::*;
 use crate::packet::*;
+use crate::wrappers::{udp_socket_bind, UdpSocket};
 
 const DEFAULT_TIMEOUT_SECS: u8 = 3;
 const DEFAULT_BLOCK_SIZE: u16 = 512;
@@ -38,7 +37,7 @@ where
         Ok(ReadRequest {
             peer,
             req,
-            socket: UdpSocket::bind("0.0.0.0:0").map_err(Error::Bind)?,
+            socket: udp_socket_bind("0.0.0.0:0").await.map_err(Error::Bind)?,
             block_id: 0,
             reader,
             size,

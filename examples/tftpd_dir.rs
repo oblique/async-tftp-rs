@@ -38,8 +38,7 @@ impl tftp::Handle for Handler {
     }
 }
 
-#[runtime::main]
-async fn main() -> Result<(), tftp::Error> {
+async fn run() -> Result<(), tftp::Error> {
     let log_config = Config {
         filter_ignore: Some(&["mio", "romio"]),
         thread: Some(simplelog::Level::Error),
@@ -53,4 +52,17 @@ async fn main() -> Result<(), tftp::Error> {
     println!("Listening on: {}", tftpd.local_addr()?);
 
     tftpd.serve().await
+}
+
+#[cfg(not(feature = "asyncstd"))]
+#[cfg_attr(not(feature = "asyncstd"), runtime::main)]
+async fn main() -> Result<(), tftp::Error> {
+    println!("Using runtime");
+    run().await
+}
+
+#[cfg(feature = "asyncstd")]
+fn main() -> Result<(), tftp::Error> {
+    println!("Using async-std");
+    async_std::task::block_on(run())
 }

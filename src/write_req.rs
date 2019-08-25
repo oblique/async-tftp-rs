@@ -1,11 +1,10 @@
-use runtime::net::UdpSocket;
-
 use bytes::{Bytes, BytesMut};
 use futures::io::{AsyncWrite, AsyncWriteExt};
 use std::net::SocketAddr;
 
 use crate::error::*;
 use crate::packet::*;
+use crate::wrappers::{udp_socket_bind, UdpSocket};
 
 pub struct WriteRequest<W>
 where
@@ -26,7 +25,7 @@ where
         Ok(WriteRequest {
             peer,
             _req: req,
-            socket: UdpSocket::bind("0.0.0.0:0").map_err(Error::Bind)?,
+            socket: udp_socket_bind("0.0.0.0:0").await.map_err(Error::Bind)?,
             block_id: 0,
             writer,
         })
