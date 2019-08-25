@@ -347,20 +347,37 @@ mod tests {
 
     #[test]
     fn check_error() {
-        let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0");
-        assert_matches!(packet, Ok(Packet::Error(8, ref errmsg)) if errmsg == "msg");
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x01msg\0");
+        assert_matches!(packet, Ok(Packet::Error(TftpError::FileNotFound)));
         assert_eq!(
             packet.unwrap().to_bytes(),
-            b"\x00\x05\x00\x08msg\0".to_vec()
+            b"\x00\x05\x00\x01File not found\0".to_vec()
         );
 
-        let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg\0more");
+        // 0x10 is unknown error code an will be treated as 0
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x10msg\0");
+        assert_matches!(packet, Ok(Packet::Error(TftpError::Msg(ref errmsg)))
+                        if errmsg == "msg");
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            b"\x00\x05\x00\x00msg\0".to_vec()
+        );
+
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x00msg\0");
+        assert_matches!(packet, Ok(Packet::Error(TftpError::Msg(ref errmsg)))
+                        if errmsg == "msg");
+        assert_eq!(
+            packet.unwrap().to_bytes(),
+            b"\x00\x05\x00\x00msg\0".to_vec()
+        );
+
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x00msg\0more");
         assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
-        let packet = Packet::from_bytes(b"\x00\x05\x00\x08msg");
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x00msg");
         assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
 
-        let packet = Packet::from_bytes(b"\x00\x05\x00\x08");
+        let packet = Packet::from_bytes(b"\x00\x05\x00\x00");
         assert_matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket));
     }
 
