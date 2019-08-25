@@ -25,11 +25,6 @@ impl tftp::Handle for Handler {
         &mut self,
         path: &str,
     ) -> Result<(Self::Reader, Option<u64>), TftpError> {
-        // Avoid directory traversal attacks
-        if path.contains("..") {
-            return Err(TftpError::PermissionDenied);
-        }
-
         let file = File::open(path)?;
         let len = file.metadata().ok().map(|m| m.len());
         Ok((AllowStdIo::new(file), len))
@@ -40,11 +35,6 @@ impl tftp::Handle for Handler {
         path: &str,
         _size: Option<u64>,
     ) -> Result<Self::Writer, TftpError> {
-        // Avoid directory traversal attacks
-        if path.contains("..") {
-            return Err(TftpError::PermissionDenied);
-        }
-
         let file = File::create(path)?;
         Ok(AllowStdIo::new(file))
     }
