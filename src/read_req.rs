@@ -9,19 +9,20 @@ use crate::error::*;
 use crate::packet::*;
 use crate::wrappers::{udp_socket_bind, UdpSocket};
 
-const DEFAULT_TIMEOUT_SECS: u8 = 3;
-const DEFAULT_BLOCK_SIZE: u16 = 512;
+const DEFAULT_TIMEOUT_SECS: u64 = 3;
+const DEFAULT_BLOCK_SIZE: usize = 512;
 
 pub struct ReadRequest<R>
 where
     R: AsyncRead + Send,
 {
     peer: SocketAddr,
-    req: RwReq,
     socket: UdpSocket,
-    block_id: u16,
     reader: R,
-    size: Option<u64>,
+    block_id: u16,
+    block_size: usize,
+    timeout: u64,
+    oack_opts: Option<Opts>,
 }
 
 impl<R> ReadRequest<R>
@@ -30,17 +31,49 @@ where
 {
     pub async fn init(
         reader: R,
-        size: Option<u64>,
+        file_size: Option<u64>,
         peer: SocketAddr,
         req: RwReq,
     ) -> Result<Self> {
+        let mut oack_opts = Opts::default();
+        let mut send_oack = false;
+
+        let block_size = match req.opts.block_size {
+            Some(size) if size <= 1024 => {
+                send_oack = true;
+                usize::from(size)
+            }
+            _ => DEFAULT_BLOCK_SIZE,
+        };
+
+        let timeout = match req.opts.timeout {
+            Some(timeout) => {
+                send_oack = true;
+                u64::from(timeout)
+            }
+            None => DEFAULT_TIMEOUT_SECS,
+        };
+
+        if let (Some(0), Some(file_size)) = (req.opts.transfer_size, file_size)
+        {
+            oack_opts.transfer_size = Some(file_size);
+            send_oack = true;
+        }
+
+        let oack_opts = if send_oack {
+            Some(oack_opts)
+        } else {
+            None
+        };
+
         Ok(ReadRequest {
             peer,
-            req,
             socket: udp_socket_bind("0.0.0.0:0").await.map_err(Error::Bind)?,
-            block_id: 0,
             reader,
-            size,
+            block_id: 0,
+            block_size,
+            timeout,
+            oack_opts,
         })
     }
 
@@ -54,34 +87,23 @@ where
     }
 
     async fn try_handle(&mut self) -> Result<()> {
-        let mut oack_opts = self.req.opts.clone();
-
-        // Server needs to reply the size of the actual file
-        oack_opts.transfer_size = match self.req.opts.transfer_size {
-            Some(0) => self.size,
-            _ => None,
-        };
-
         // Reply with OACK if needed
-        if !oack_opts.all_none() {
-            trace!("RRQ (peer: {}) - Send OACK: {:?}", self.peer, oack_opts);
-            let packet = Packet::OAck(oack_opts).to_bytes();
+        if let Some(opts) = &self.oack_opts {
+            trace!("RRQ (peer: {}) - Send OACK: {:?}", self.peer, opts);
+            let packet = Packet::OAck(opts.to_owned()).to_bytes();
             self.send(&packet[..]).await?;
         }
 
-        let block_size =
-            self.req.opts.block_size.unwrap_or(DEFAULT_BLOCK_SIZE).into();
-
         // Send file to client
         loop {
-            let block = self.read_block(block_size).await?;
-            let last_block = block.len() < block_size;
+            let block = self.read_block(self.block_size).await?;
 
             self.block_id = self.block_id.wrapping_add(1);
             let packet = Packet::Data(self.block_id, &block[..]).to_bytes();
             self.send(&packet[..]).await?;
 
-            if last_block {
+            // exit loop on last block
+            if block.len() < self.block_size {
                 break;
             }
         }
@@ -91,10 +113,9 @@ where
     }
 
     async fn send(&mut self, packet: &[u8]) -> Result<()> {
-        let timeout =
-            self.req.opts.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS).into();
         let peer = self.peer;
         let block_id = self.block_id;
+        let timeout = self.timeout;
 
         loop {
             self.socket.send_to(&packet[..], self.peer).await?;
