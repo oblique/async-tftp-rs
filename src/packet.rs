@@ -1,13 +1,17 @@
-use bytes::BufMut;
-use enum_primitive_derive::Primitive;
+use bytes::BytesMut;
+use num_derive::FromPrimitive;
 use std::convert::From;
 use std::io;
 use std::str;
 
+use crate::bytes_ext::BytesMutExt;
 use crate::error::*;
 use crate::parse::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Primitive)]
+pub const PACKET_DATA_HEADER_LEN: usize = 4;
+
+#[derive(Debug, Clone, Copy, PartialEq, FromPrimitive)]
+#[repr(u16)]
 pub(crate) enum PacketType {
     Rrq = 1,
     Wrq = 2,
@@ -62,78 +66,75 @@ pub struct Opts {
 }
 
 impl<'a> Packet<'a> {
-    pub fn from_bytes(data: &[u8]) -> Result<Packet> {
+    pub fn decode(data: &[u8]) -> Result<Packet> {
         parse_packet(data)
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
-
+    pub fn encode(&self, buf: &mut BytesMut) {
         match self {
             Packet::Rrq(req) => {
-                buf.put_u16_be(PacketType::Rrq as u16);
-                buf.put(&req.filename);
-                buf.put_u8(0);
-                buf.put(req.mode.to_str());
-                buf.put_u8(0);
-                req.opts.encode(&mut buf);
+                buf.extend_u16_be(PacketType::Rrq as u16);
+                buf.extend_buf(&req.filename);
+                buf.extend_u8(0);
+                buf.extend_buf(req.mode.to_str());
+                buf.extend_u8(0);
+                req.opts.encode(buf);
             }
             Packet::Wrq(req) => {
-                buf.put_u16_be(PacketType::Wrq as u16);
-                buf.put(&req.filename);
-                buf.put_u8(0);
-                buf.put(req.mode.to_str());
-                buf.put_u8(0);
-                req.opts.encode(&mut buf);
+                buf.extend_u16_be(PacketType::Wrq as u16);
+                buf.extend_buf(&req.filename);
+                buf.extend_u8(0);
+                buf.extend_buf(req.mode.to_str());
+                buf.extend_u8(0);
+                req.opts.encode(buf);
             }
             Packet::Data(block, data) => {
-                buf.put_u16_be(PacketType::Data as u16);
-                buf.put_u16_be(*block);
-                buf.put(data.as_ref());
+                buf.extend_u16_be(PacketType::Data as u16);
+                buf.extend_u16_be(*block);
+                buf.extend_buf(&data[..]);
             }
             Packet::Ack(block) => {
-                buf.put_u16_be(PacketType::Ack as u16);
-                buf.put_u16_be(*block);
+                buf.extend_u16_be(PacketType::Ack as u16);
+                buf.extend_u16_be(*block);
             }
             Packet::Error(error) => {
-                buf.put_u16_be(PacketType::Error as u16);
-                buf.put_u16_be(error.code());
-                buf.put(error.msg());
-                buf.put_u8(0);
+                buf.extend_u16_be(PacketType::Error as u16);
+                buf.extend_u16_be(error.code());
+                buf.extend_buf(error.msg());
+                buf.extend_u8(0);
             }
             Packet::OAck(opts) => {
-                buf.put_u16_be(PacketType::OAck as u16);
-                opts.encode(&mut buf);
+                buf.extend_u16_be(PacketType::OAck as u16);
+                opts.encode(buf);
             }
         }
+    }
 
-        buf
+    pub fn encode_data_head(block_id: u16, buf: &mut BytesMut) {
+        buf.extend_u16_be(PacketType::Data as u16);
+        buf.extend_u16_be(block_id);
     }
 }
 
 impl Opts {
-    fn encode(&self, buf: &mut Vec<u8>) {
-        if let Some(x) = self.block_size {
-            buf.put("blksize\0");
-            buf.put(x.to_string());
-            buf.put_u8(0);
+    fn encode(&self, buf: &mut BytesMut) {
+        if let Some(block_size) = self.block_size {
+            buf.extend_buf("blksize\0");
+            buf.extend_buf(block_size.to_string());
+            buf.extend_u8(0);
         }
 
-        if let Some(x) = self.timeout {
-            buf.put("timeout\0");
-            buf.put(x.to_string());
-            buf.put_u8(0);
+        if let Some(timeout) = self.timeout {
+            buf.extend_buf("timeout\0");
+            buf.extend_buf(timeout.to_string());
+            buf.extend_u8(0);
         }
 
-        if let Some(x) = self.transfer_size {
-            buf.put("tsize\0");
-            buf.put(x.to_string());
-            buf.put_u8(0);
+        if let Some(transfer_size) = self.transfer_size {
+            buf.extend_buf("tsize\0");
+            buf.extend_buf(transfer_size.to_string());
+            buf.extend_u8(0);
         }
-    }
-
-    pub fn all_none(&self) -> bool {
-        *self == Opts::default()
     }
 }
 

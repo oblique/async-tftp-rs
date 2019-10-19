@@ -1,16 +1,20 @@
+use async_std::net::{ToSocketAddrs, UdpSocket};
+use async_std::sync::Mutex;
+use async_std::task;
+use bytes::BytesMut;
 use futures::future::select_all;
 use futures::FutureExt;
-use log::trace;
 use std::collections::HashSet;
 use std::iter;
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::net::SocketAddr;
 use std::sync::Arc;
+use tracing::{info_span, trace};
+use tracing_futures::Instrument;
 
 use crate::error::*;
 use crate::handle::*;
 use crate::packet::*;
 use crate::read_req::*;
-use crate::wrappers::*;
 use crate::write_req::*;
 
 pub struct AsyncTftpServer<H>
@@ -20,9 +24,10 @@ where
     socket: Option<UdpSocket>,
     handler: Arc<Mutex<H>>,
     reqs_in_progress: HashSet<SocketAddr>,
+    buffer: BytesMut,
 }
 
-type ReqResult = std::result::Result<SocketAddr, (SocketAddr, Error)>;
+type ReqResult = std::result::Result<(SocketAddr), (SocketAddr, Error)>;
 
 /// This contains all results of the futures that are passed in `select_all`.
 enum FutResults {
@@ -41,9 +46,10 @@ where
         A: ToSocketAddrs,
     {
         Ok(AsyncTftpServer {
-            socket: Some(udp_socket_bind(addr).await?),
+            socket: Some(UdpSocket::bind(addr).await?),
             handler: Arc::new(Mutex::new(handler)),
             reqs_in_progress: HashSet::new(),
+            buffer: BytesMut::new(),
         })
     }
 
@@ -52,6 +58,7 @@ where
             socket: Some(socket),
             handler: Arc::new(Mutex::new(handler)),
             reqs_in_progress: HashSet::new(),
+            buffer: BytesMut::new(),
         })
     }
 
@@ -98,18 +105,29 @@ where
                     );
 
                     // Send the error and ignore errors while sending it.
-                    let _ = send_error(e, peer).await;
+                    let _ = self.send_error(e, peer).await;
                     self.reqs_in_progress.remove(&peer);
+
+                    // Serve only one request for tests
+                    #[cfg(test)]
+                    break;
                 }
                 // Request is served
                 FutResults::ReqFinished(Ok(peer)) => {
                     trace!("Request for peer {} is served", peer);
                     self.reqs_in_progress.remove(&peer);
+
+                    // Serve only one request for tests
+                    #[cfg(test)]
+                    break;
                 }
             }
 
             select_fut = select_all(remaining_futs.into_iter());
         }
+
+        #[cfg(test)]
+        Ok(())
     }
 
     async fn handle_req_packet<'a>(
@@ -117,7 +135,7 @@ where
         peer: SocketAddr,
         data: &'a [u8],
     ) -> Option<task::JoinHandle<ReqResult>> {
-        let packet = match Packet::from_bytes(data) {
+        let packet = match Packet::decode(data) {
             Ok(packet) => match packet {
                 Packet::Rrq(_) | Packet::Wrq(_) => packet,
                 // Ignore packets that are not requests
@@ -144,28 +162,36 @@ where
         peer: SocketAddr,
         req: RwReq,
     ) -> task::JoinHandle<ReqResult> {
-        let task_handler = Arc::clone(&self.handler);
+        let handler = Arc::clone(&self.handler);
 
-        task::spawn(async move {
-            trace!("RRQ (peer: {}) - {:?}", peer, req);
+        task::spawn(
+            async move {
+                trace!("{:?}", req);
 
-            let (reader, size) = {
-                let mut handler = mutex_lock(&task_handler).await;
+                let (mut reader, size) = handler
+                    .lock()
+                    .await
+                    .read_open(&peer, req.filename.as_ref())
+                    .await
+                    .map_err(|e| (peer, Error::Tftp(e)))?;
+
+                let mut read_req =
+                    ReadRequest::init(&mut reader, size, peer, &req)
+                        .await
+                        .map_err(|e| (peer, e))?;
+
+                read_req.handle().await;
 
                 handler
-                    .read_open(&req.filename)
+                    .lock()
                     .await
-                    .map_err(|e| (peer, e.into()))?
-            };
+                    .rrq_served(&peer, req.filename.as_ref(), reader)
+                    .await;
 
-            let mut read_req = ReadRequest::init(reader, size, peer, req)
-                .await
-                .map_err(|e| (peer, e))?;
-
-            read_req.handle().await;
-
-            Ok(peer)
-        })
+                Ok(peer)
+            }
+                .instrument(info_span!("RRQ", %peer)),
+        )
     }
 
     fn handle_wrq(
@@ -179,12 +205,16 @@ where
             trace!("WRQ (peer: {}) - {:?}", peer, req);
 
             let writer = {
-                let mut handler = mutex_lock(&task_handler).await;
+                let mut handler = task_handler.lock().await;
 
                 handler
-                    .write_open(&req.filename, req.opts.transfer_size)
+                    .write_open(
+                        &peer,
+                        req.filename.as_ref(),
+                        req.opts.transfer_size,
+                    )
                     .await
-                    .map_err(|e| (peer, e.into()))?
+                    .map_err(|e| (peer, Error::Tftp(e)))?
             };
 
             let mut write_req = WriteRequest::init(writer, peer, req)
@@ -196,23 +226,28 @@ where
             Ok(peer)
         })
     }
+
+    async fn send_error(
+        &mut self,
+        error: Error,
+        peer: SocketAddr,
+    ) -> Result<()> {
+        Packet::Error(error.into()).encode(&mut self.buffer);
+        let buf = self.buffer.take().freeze();
+
+        let socket = UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?;
+        socket.send_to(&buf[..], peer).await?;
+
+        Ok(())
+    }
 }
 
-async fn recv_req(mut socket: UdpSocket, mut buf: Vec<u8>) -> FutResults {
-    let res = socket_recv_from(&mut socket, &mut buf).await.map_err(Into::into);
+async fn recv_req(socket: UdpSocket, mut buf: Vec<u8>) -> FutResults {
+    let res = socket.recv_from(&mut buf).await.map_err(Into::into);
     FutResults::RecvReq(res, buf, socket)
 }
 
 async fn req_finished(handle: task::JoinHandle<ReqResult>) -> FutResults {
     let res = handle.await;
     FutResults::ReqFinished(res)
-}
-
-async fn send_error(error: Error, peer: SocketAddr) -> Result<()> {
-    let mut socket = udp_socket_bind("0.0.0.0:0").await.map_err(Error::Bind)?;
-
-    let packet = Packet::Error(error.into()).to_bytes();
-    socket_send_to(&mut socket, &packet[..], peer).await?;
-
-    Ok(())
 }

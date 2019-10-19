@@ -1,36 +1,24 @@
-use failure::Fail;
+use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum Error {
-    #[fail(display = "Invalid packet")]
+    #[error("Invalid packet")]
     InvalidPacket,
 
-    #[fail(display = "Tftp error: {:?}", _0)]
+    #[error("TFTP error: {0:?}")]
     Tftp(crate::TftpError),
 
-    #[fail(display = "IO Error: {}", _0)]
-    Io(std::io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 
-    #[fail(display = "Failed to bind socket: {}", _0)]
-    Bind(std::io::Error),
-}
-
-impl From<std::io::Error> for Error {
-    fn from(error: std::io::Error) -> Error {
-        Error::Io(error)
-    }
+    #[error("Failed to bind socket: {0}")]
+    Bind(#[source] std::io::Error),
 }
 
 impl<'a> From<nom::Err<(&'a [u8], nom::error::ErrorKind)>> for Error {
     fn from(_error: nom::Err<(&'a [u8], nom::error::ErrorKind)>) -> Error {
         Error::InvalidPacket
-    }
-}
-
-impl From<crate::TftpError> for Error {
-    fn from(error: crate::TftpError) -> Error {
-        Error::Tftp(error)
     }
 }

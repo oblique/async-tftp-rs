@@ -1,5 +1,7 @@
 use async_trait::async_trait;
 use futures::{AsyncRead, AsyncWrite};
+use std::net::SocketAddr;
+use std::path::Path;
 
 use crate::TftpError;
 
@@ -10,12 +12,22 @@ pub trait Handle: Send {
 
     async fn read_open(
         &mut self,
-        path: &str,
+        client: &SocketAddr,
+        path: &Path,
     ) -> Result<(Self::Reader, Option<u64>), TftpError>;
+
+    async fn rrq_served(
+        &mut self,
+        _client: &SocketAddr,
+        _path: &Path,
+        _reader: Self::Reader,
+    ) {
+    }
 
     async fn write_open(
         &mut self,
-        path: &str,
+        client: &SocketAddr,
+        path: &Path,
         size: Option<u64>,
     ) -> Result<Self::Writer, TftpError>;
 }
