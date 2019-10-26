@@ -1,157 +1,210 @@
+use async_std::net::UdpSocket;
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::io::{AsyncRead, AsyncReadExt};
-use futures::{select, FutureExt};
-use futures_timer::Delay;
-use log::trace;
+use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
+use tracing::{debug_span, trace};
+use tracing_futures::Instrument;
 
 use crate::error::*;
 use crate::packet::*;
-use crate::wrappers::{udp_socket_bind, UdpSocket};
 
-const DEFAULT_TIMEOUT_SECS: u8 = 3;
-const DEFAULT_BLOCK_SIZE: u16 = 512;
+const DEFAULT_TIMEOUT_SECS: Duration = Duration::from_secs(3);
+const DEFAULT_BLOCK_SIZE: usize = 512;
 
-pub struct ReadRequest<R>
+pub struct ReadRequest<'r, R>
 where
     R: AsyncRead + Send,
 {
     peer: SocketAddr,
-    req: RwReq,
     socket: UdpSocket,
+    reader: &'r mut R,
     block_id: u16,
-    reader: R,
-    size: Option<u64>,
+    block_size: usize,
+    timeout: Duration,
+    oack_opts: Option<Opts>,
+    buffer: BytesMut,
 }
 
-impl<R> ReadRequest<R>
+impl<'r, R> ReadRequest<'r, R>
 where
     R: AsyncRead + Send + Unpin,
 {
     pub async fn init(
-        reader: R,
-        size: Option<u64>,
+        reader: &'r mut R,
+        file_size: Option<u64>,
         peer: SocketAddr,
-        req: RwReq,
-    ) -> Result<Self> {
+        req: &RwReq,
+    ) -> Result<ReadRequest<'r, R>> {
+        let mut oack_opts = Opts::default();
+        let mut send_oack = false;
+
+        let block_size = match req.opts.block_size {
+            Some(size) if size <= 1024 => {
+                send_oack = true;
+                oack_opts.block_size = Some(size);
+                usize::from(size)
+            }
+            _ => DEFAULT_BLOCK_SIZE,
+        };
+
+        let timeout = match req.opts.timeout {
+            Some(timeout) => {
+                send_oack = true;
+                oack_opts.timeout = Some(timeout);
+                Duration::from_secs(u64::from(timeout))
+            }
+            None => DEFAULT_TIMEOUT_SECS,
+        };
+
+        if let (Some(0), Some(file_size)) = (req.opts.transfer_size, file_size)
+        {
+            send_oack = true;
+            oack_opts.transfer_size = Some(file_size);
+        }
+
+        let oack_opts = if send_oack {
+            Some(oack_opts)
+        } else {
+            None
+        };
+
         Ok(ReadRequest {
             peer,
-            req,
-            socket: udp_socket_bind("0.0.0.0:0").await.map_err(Error::Bind)?,
-            block_id: 0,
+            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
             reader,
-            size,
+            block_id: 0,
+            block_size,
+            timeout,
+            oack_opts,
+            buffer: BytesMut::with_capacity(
+                PACKET_DATA_HEADER_LEN + block_size,
+            ),
         })
     }
 
     pub async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
-            let packet = Packet::Error(e.into()).to_bytes();
+            Packet::Error(e.into()).encode(&mut self.buffer);
+            let buf = self.buffer.take().freeze();
             // Errors are never retransmitted.
             // We do not care if `send_to` resulted to an IO error.
-            let _ = self.socket.send_to(&packet[..], self.peer).await;
+            let _ = self.socket.send_to(&buf[..], self.peer).await;
         }
     }
 
     async fn try_handle(&mut self) -> Result<()> {
-        let mut oack_opts = self.req.opts.clone();
-
-        // Server needs to reply the size of the actual file
-        oack_opts.transfer_size = match self.req.opts.transfer_size {
-            Some(0) => self.size,
-            _ => None,
-        };
-
         // Reply with OACK if needed
-        if !oack_opts.all_none() {
-            trace!("RRQ (peer: {}) - Send OACK: {:?}", self.peer, oack_opts);
-            let packet = Packet::OAck(oack_opts).to_bytes();
-            self.send(&packet[..]).await?;
-        }
+        if let Some(opts) = &self.oack_opts {
+            trace!("Send OACK: {:?}", opts);
 
-        let block_size =
-            self.req.opts.block_size.unwrap_or(DEFAULT_BLOCK_SIZE).into();
+            Packet::OAck(opts.to_owned()).encode(&mut self.buffer);
+            let buf = self.buffer.take().freeze();
+
+            self.send(buf).await?;
+        }
 
         // Send file to client
         loop {
-            let block = self.read_block(block_size).await?;
-            let last_block = block.len() < block_size;
+            let is_last_block;
 
+            // Reclaim buffer
+            self.buffer.reserve(PACKET_DATA_HEADER_LEN + self.block_size);
+
+            // Encode head of Data packet
             self.block_id = self.block_id.wrapping_add(1);
-            let packet = Packet::Data(self.block_id, &block[..]).to_bytes();
-            self.send(&packet[..]).await?;
+            Packet::encode_data_head(self.block_id, &mut self.buffer);
 
-            if last_block {
+            // Read block in self.buffer
+            let buf = unsafe {
+                let mut buf =
+                    self.buffer.split_to(self.buffer.len() + self.block_size);
+
+                let len = self.read_block(buf.bytes_mut()).await?;
+                is_last_block = len < self.block_size;
+
+                buf.advance_mut(len);
+                buf.freeze()
+            };
+
+            // Send Data packet
+            let span = debug_span!("", block_id = %self.block_id);
+            self.send(buf).instrument(span).await?;
+
+            if is_last_block {
                 break;
             }
         }
 
-        trace!("RRQ (peer: {}) - Request served successfully", self.peer);
+        trace!("Request served successfully");
         Ok(())
     }
 
-    async fn send(&mut self, packet: &[u8]) -> Result<()> {
-        let timeout =
-            self.req.opts.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS).into();
-        let peer = self.peer;
-        let block_id = self.block_id;
-
+    async fn send(&mut self, packet: Bytes) -> Result<()> {
+        // Send packet until we receive an ack
         loop {
             self.socket.send_to(&packet[..], self.peer).await?;
 
-            let mut recv_ack_fut = self.recv_ack().boxed().fuse();
-            let mut timeout_fut =
-                Delay::new(Duration::from_secs(timeout)).fuse();
-
-            select! {
-                _ = recv_ack_fut => {
-                    trace!("RRQ (peer: {}, block_id: {}) - Received ACK", peer, block_id);
+            match self.recv_ack().await {
+                Ok(_) => {
+                    trace!("Received ACK");
                     break;
                 }
-                _ = timeout_fut => {
-                    trace!("RRQ (peer: {}, block_id: {}) - Timeout", peer, block_id);
+                Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                    trace!("Timeout");
                     continue;
                 }
-            };
+                Err(e) => return Err(e.into()),
+            }
         }
 
         Ok(())
     }
 
-    async fn recv_ack(&mut self) -> Result<()> {
-        let mut buf = [0u8; 1024];
+    async fn recv_ack(&mut self) -> io::Result<()> {
+        // We can not use `self` within `async_std::io::timeout` because not all
+        // struct members implement `Sync`. So we borrow only what we need.
+        let socket = &mut self.socket;
+        let peer = self.peer;
+        let block_id = self.block_id;
 
-        loop {
-            let (len, peer) = self.socket.recv_from(&mut buf[..]).await?;
+        async_std::io::timeout(self.timeout, async {
+            let mut buf = [0u8; 1024];
 
-            // if the packet do not come from the client we are serving, then ignore it
-            if peer != self.peer {
-                continue;
-            }
+            loop {
+                let (len, recved_peer) = socket.recv_from(&mut buf[..]).await?;
 
-            // parse only valid Ack packets, the rest are ignored
-            if let Ok(Packet::Ack(block_id)) = Packet::from_bytes(&buf[..len]) {
-                if self.block_id == block_id {
-                    break;
+                // if the packet do not come from the client we are serving, then ignore it
+                if recved_peer != peer {
+                    continue;
+                }
+
+                // parse only valid Ack packets, the rest are ignored
+                if let Ok(Packet::Ack(recved_block_id)) =
+                    Packet::decode(&buf[..len])
+                {
+                    if recved_block_id == block_id {
+                        return Ok(());
+                    }
                 }
             }
-        }
+        })
+        .await?;
 
         Ok(())
     }
 
-    async fn read_block(&mut self, block_size: usize) -> Result<Vec<u8>> {
-        let mut buf = vec![0u8; block_size];
+    async fn read_block(&mut self, buf: &mut [u8]) -> Result<usize> {
         let mut len = 0;
 
-        while len < block_size {
+        while len < buf.len() {
             match self.reader.read(&mut buf[len..]).await? {
                 0 => break,
                 x => len += x,
             }
         }
 
-        buf.truncate(len);
-        Ok(buf)
+        Ok(len)
     }
 }

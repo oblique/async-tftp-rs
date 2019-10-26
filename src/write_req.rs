@@ -2,9 +2,10 @@ use bytes::{Bytes, BytesMut};
 use futures::io::{AsyncWrite, AsyncWriteExt};
 use std::net::SocketAddr;
 
+use async_std::net::UdpSocket;
+
 use crate::error::*;
 use crate::packet::*;
-use crate::wrappers::{udp_socket_bind, UdpSocket};
 
 pub struct WriteRequest<W>
 where
@@ -15,6 +16,7 @@ where
     socket: UdpSocket,
     block_id: u16,
     writer: W,
+    buffer: BytesMut,
 }
 
 impl<W> WriteRequest<W>
@@ -25,24 +27,29 @@ where
         Ok(WriteRequest {
             peer,
             _req: req,
-            socket: udp_socket_bind("0.0.0.0:0").await.map_err(Error::Bind)?,
+            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
             block_id: 0,
             writer,
+            buffer: BytesMut::new(),
         })
     }
 
     pub async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
-            let packet = Packet::Error(e.into()).to_bytes();
+            Packet::Error(e.into()).encode(&mut self.buffer);
+            let buf = self.buffer.take().freeze();
             // Errors are never retransmitted.
             // We do not care if `send_to` resulted to an IO error.
-            let _ = self.socket.send_to(&packet[..], self.peer).await;
+            let _ = self.socket.send_to(&buf[..], self.peer).await;
         }
     }
 
     async fn try_handle(&mut self) -> Result<()> {
-        let ack = Packet::Ack(self.block_id).to_bytes();
-        self.socket.send_to(&ack[..], self.peer).await?;
+        {
+            Packet::Ack(self.block_id).encode(&mut self.buffer);
+            let buf = self.buffer.take().freeze();
+            self.socket.send_to(&buf[..], self.peer).await?;
+        }
 
         loop {
             // recv data
@@ -53,9 +60,10 @@ where
             self.writer.write_all(&data[..]).await?;
 
             // ack
-            let ack = Packet::Ack(self.block_id).to_bytes();
             // TODO: resend on timeout
-            self.socket.send_to(&ack[..], self.peer).await?;
+            Packet::Ack(self.block_id).encode(&mut self.buffer);
+            let buf = self.buffer.take().freeze();
+            self.socket.send_to(&buf[..], self.peer).await?;
 
             if data.len() < 512 {
                 break;
@@ -77,7 +85,7 @@ where
                 continue;
             }
 
-            let packet = Packet::from_bytes(&buf[..len])?;
+            let packet = Packet::decode(&buf[..len])?;
 
             // TODO: handle Packet::Error as error::Error
             if let Packet::Data(block_id, data) = packet {
