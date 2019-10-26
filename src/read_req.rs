@@ -43,6 +43,7 @@ where
         let block_size = match req.opts.block_size {
             Some(size) if size <= 1024 => {
                 send_oack = true;
+                oack_opts.block_size = Some(size);
                 usize::from(size)
             }
             _ => DEFAULT_BLOCK_SIZE,
@@ -51,6 +52,7 @@ where
         let timeout = match req.opts.timeout {
             Some(timeout) => {
                 send_oack = true;
+                oack_opts.timeout = Some(timeout);
                 Duration::from_secs(u64::from(timeout))
             }
             None => DEFAULT_TIMEOUT_SECS,
