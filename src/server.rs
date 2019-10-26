@@ -171,7 +171,7 @@ where
                 let (mut reader, size) = handler
                     .lock()
                     .await
-                    .read_open(&peer, req.filename.as_ref())
+                    .read_req_open(&peer, req.filename.as_ref())
                     .await
                     .map_err(|e| (peer, Error::Tftp(e)))?;
 
@@ -185,7 +185,7 @@ where
                 handler
                     .lock()
                     .await
-                    .rrq_served(&peer, req.filename.as_ref(), reader)
+                    .read_req_served(&peer, req.filename.as_ref(), reader)
                     .await;
 
                 Ok(peer)

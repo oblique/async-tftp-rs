@@ -10,13 +10,13 @@ pub trait Handle: Send {
     type Reader: AsyncRead + Unpin + Send + 'static;
     type Writer: AsyncWrite + Unpin + Send + 'static;
 
-    async fn read_open(
+    async fn read_req_open(
         &mut self,
         client: &SocketAddr,
         path: &Path,
     ) -> Result<(Self::Reader, Option<u64>), TftpError>;
 
-    async fn rrq_served(
+    async fn read_req_served(
         &mut self,
         _client: &SocketAddr,
         _path: &Path,

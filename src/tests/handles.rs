@@ -31,7 +31,7 @@ impl Handle for RandomHandle {
     type Reader = RandomFile;
     type Writer = Sink;
 
-    async fn read_open(
+    async fn read_req_open(
         &mut self,
         _client: &SocketAddr,
         _path: &Path,
@@ -39,7 +39,7 @@ impl Handle for RandomHandle {
         Ok((RandomFile::new(self.file_size), None))
     }
 
-    async fn rrq_served(
+    async fn read_req_served(
         &mut self,
         _client: &SocketAddr,
         _path: &Path,

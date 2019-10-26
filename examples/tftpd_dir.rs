@@ -21,7 +21,7 @@ impl tftp::Handle for Handler {
     type Reader = File;
     type Writer = File;
 
-    async fn read_open(
+    async fn read_req_open(
         &mut self,
         _client: &SocketAddr,
         path: &Path,
