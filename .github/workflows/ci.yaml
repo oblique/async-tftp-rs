@@ -38,7 +38,9 @@ jobs:
             - name: Install tftp
               shell: pwsh
               run: |
-                  Invoke-WebRequest -OutFile ${env:TEMP}\tftp.exe https://www.winagents.com/downloads/tftp.exe
+                  New-Item -ItemType directory -Path "${env:TEMP}\\tftp"
+                  echo "::add-path::${env:TEMP}\\tftp"
+                  Invoke-WebRequest -OutFile "${env:TEMP}\\tftp\\tftp.exe" https://www.winagents.com/downloads/tftp.exe
             - name: Install beta toolchain
               uses: actions-rs/toolchain@v1
               with:

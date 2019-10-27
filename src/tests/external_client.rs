@@ -17,6 +17,7 @@ pub fn external_tftp_recv(
     let tmp = tempdir()?;
     let path = tmp.path().join("data");
 
+    // Expects `atftp` to be installed
     Command::new("atftp")
         .arg("-g")
         .arg("-l")
@@ -38,9 +39,9 @@ pub fn external_tftp_recv(
 ) -> io::Result<md5::Digest> {
     let tmp = tempdir()?;
     let path = tmp.path().join("data");
-    let tftp_path = PathBuf::from(env::var("TEMP").unwrap()).join("tftp.exe");
 
-    Command::new(tftp_path)
+    // Expects `https://www.winagents.com/downloads/tftp.exe` is in `PATH`
+    Command::new("tftp")
         .arg("-i")
         .arg(format!("-p{}", server.port()))
         .arg(server.ip().to_string())
