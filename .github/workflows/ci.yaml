@@ -17,7 +17,14 @@ jobs:
                   profile: minimal
                   toolchain: beta
                   override: true
-            - uses: actions/checkout@v1
+            - name: Checkout sources
+              uses: actions/checkout@v1
+            - name: Build
+              uses: actions-rs/cargo@v1
+              with:
+                  command: build
+                  args: --release --tests --examples --features external-client-tests
+                  toolchain: beta
             - name: Run tests
               uses: actions-rs/cargo@v1
               with:
@@ -47,7 +54,14 @@ jobs:
                   profile: minimal
                   toolchain: beta
                   override: true
-            - uses: actions/checkout@v1
+            - name: Checkout sources
+              uses: actions/checkout@v1
+            - name: Build
+              uses: actions-rs/cargo@v1
+              with:
+                  command: build
+                  args: --release --tests --examples --features external-client-tests
+                  toolchain: beta
             - name: Run tests
               uses: actions-rs/cargo@v1
               with:
@@ -71,7 +85,14 @@ jobs:
                   profile: minimal
                   toolchain: beta
                   override: true
-            - uses: actions/checkout@v1
+            - name: Checkout sources
+              uses: actions/checkout@v1
+            - name: Build
+              uses: actions-rs/cargo@v1
+              with:
+                  command: build
+                  args: --release --tests --examples
+                  toolchain: beta
             - name: Run tests
               uses: actions-rs/cargo@v1
               with:
