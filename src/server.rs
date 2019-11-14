@@ -15,6 +15,7 @@ use crate::error::*;
 use crate::handle::*;
 use crate::packet::*;
 use crate::read_req::*;
+#[cfg(feature = "unstable")]
 use crate::write_req::*;
 
 pub struct AsyncTftpServer<H>
@@ -152,6 +153,7 @@ where
 
         match packet {
             Packet::Rrq(req) => Some(self.handle_rrq(peer, req)),
+            #[cfg(feature = "unstable")]
             Packet::Wrq(req) => Some(self.handle_wrq(peer, req)),
             _ => None,
         }
@@ -182,6 +184,7 @@ where
 
                 read_req.handle().await;
 
+                #[cfg(feature = "unstable")]
                 handler
                     .lock()
                     .await
@@ -194,6 +197,7 @@ where
         )
     }
 
+    #[cfg(feature = "unstable")]
     fn handle_wrq(
         &mut self,
         peer: SocketAddr,

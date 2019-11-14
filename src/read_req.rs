@@ -102,7 +102,7 @@ where
             Packet::OAck(opts.to_owned()).encode(&mut self.buffer);
             let buf = self.buffer.take().freeze();
 
-            self.send(buf).await?;
+            self.send(buf, 0).await?;
         }
 
         // Send file to client
@@ -130,7 +130,7 @@ where
 
             // Send Data packet
             let span = debug_span!("", block_id = %self.block_id);
-            self.send(buf).instrument(span).await?;
+            self.send(buf, self.block_id).instrument(span).await?;
 
             if is_last_block {
                 break;
@@ -141,17 +141,20 @@ where
         Ok(())
     }
 
-    async fn send(&mut self, packet: Bytes) -> Result<()> {
+    async fn send(&mut self, packet: Bytes, block_id: u16) -> Result<()> {
         // Send packet until we receive an ack
         loop {
             self.socket.send_to(&packet[..], self.peer).await?;
 
             match self.recv_ack().await {
                 Ok(_) => {
+                    // TODO: Remove ugly logs and provide interface to the user
+                    log::debug!("RRQ (block_id: {}) - Received ACK", block_id);
                     trace!("Received ACK");
                     break;
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                    log::debug!("RRQ (block_id: {}) - Timeout", block_id);
                     trace!("Timeout");
                     continue;
                 }

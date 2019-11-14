@@ -1,10 +1,9 @@
 use anyhow::Result;
 use async_std::fs::File;
-use async_trait::async_trait;
+use async_tftp::AsyncTftpServer;
+use async_tftp::TftpError;
 use std::net::SocketAddr;
 use std::path::Path;
-use tftp::AsyncTftpServer;
-use tftp::TftpError;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
@@ -16,8 +15,8 @@ impl Handler {
     }
 }
 
-#[async_trait]
-impl tftp::Handle for Handler {
+#[async_tftp::async_trait]
+impl async_tftp::Handle for Handler {
     type Reader = File;
     type Writer = File;
 

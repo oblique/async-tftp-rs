@@ -4,110 +4,55 @@ on: [push, pull_request]
 jobs:
     test-linux:
         name: Run tests on Linux
-        runs-on: ubuntu-latest
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest]
         timeout-minutes: 20
         steps:
             - name: Install atftp
+              if: matrix.os == 'ubuntu-latest'
               run: |
                   sudo apt-get update
                   sudo apt-get install -y atftp
-            - name: Install beta toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                  profile: minimal
-                  toolchain: beta
-                  override: true
-            - name: Checkout sources
-              uses: actions/checkout@v1
-            - name: Build
-              uses: actions-rs/cargo@v1
-              with:
-                  command: build
-                  args: --release --tests --examples --features external-client-tests
-                  toolchain: beta
-            - name: Run tests
-              uses: actions-rs/cargo@v1
-              with:
-                  command: test
-                  args: --release --features external-client-tests
-                  toolchain: beta
-            - name: Run long tests
-              uses: actions-rs/cargo@v1
-              with:
-                  command: test
-                  args: --release --features external-client-tests -- --ignored
-                  toolchain: beta
-    test-windows:
-        name: Run tests on Windows
-        runs-on: windows-latest
-        timeout-minutes: 20
-        steps:
             - name: Install tftp
+              if: matrix.os == 'windows-latest'
               shell: pwsh
               run: |
                   New-Item -ItemType directory -Path "${env:TEMP}\\tftp"
                   echo "::add-path::${env:TEMP}\\tftp"
                   Invoke-WebRequest -OutFile "${env:TEMP}\\tftp\\tftp.exe" https://www.winagents.com/downloads/tftp.exe
-            - name: Install beta toolchain
+            - name: Install toolchain
               uses: actions-rs/toolchain@v1
               with:
                   profile: minimal
-                  toolchain: beta
-                  override: true
+                  toolchain: stable
             - name: Checkout sources
               uses: actions/checkout@v1
             - name: Build
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --release --tests --examples --features external-client-tests
-                  toolchain: beta
+                  args: --release --tests --examples --features external-client-tests,unstable
             - name: Run tests
               uses: actions-rs/cargo@v1
               with:
                   command: test
-                  args: --release --features external-client-tests
-                  toolchain: beta
+                  args: --release --features external-client-tests,unstable
             - name: Run long tests
               uses: actions-rs/cargo@v1
               with:
                   command: test
-                  args: --release --features external-client-tests -- --ignored
-                  toolchain: beta
-    test-macos:
-        name: Run tests on macOS
-        runs-on: macOS-latest
-        timeout-minutes: 20
-        steps:
-            - name: Install beta toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                  profile: minimal
-                  toolchain: beta
-                  override: true
-            - name: Checkout sources
-              uses: actions/checkout@v1
-            - name: Build
-              uses: actions-rs/cargo@v1
-              with:
-                  command: build
-                  args: --release --tests --examples
-                  toolchain: beta
-            - name: Run tests
-              uses: actions-rs/cargo@v1
-              with:
-                  command: test
-                  args: --release
-                  toolchain: beta
+                  args: --release --features external-client-tests,unstable -- --ignored
     lints:
         name: Lints
         runs-on: ubuntu-latest
         steps:
-            - name: Install beta toolchain
+            - name: Install toolchain
               uses: actions-rs/toolchain@v1
               with:
                   profile: minimal
-                  toolchain: beta
+                  toolchain: stable
                   override: true
                   components: rustfmt, clippy
             - uses: actions/checkout@v1
@@ -116,10 +61,8 @@ jobs:
               with:
                   command: fmt
                   args: --all -- --check
-                  toolchain: beta
             - name: Run cargo clippy
               uses: actions-rs/cargo@v1
               with:
                   command: clippy
                   args: -- -D clippy::all
-                  toolchain: beta

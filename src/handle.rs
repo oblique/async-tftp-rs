@@ -1,13 +1,15 @@
-use async_trait::async_trait;
-use futures::{AsyncRead, AsyncWrite};
+use futures::AsyncRead;
+#[cfg(feature = "unstable")]
+use futures::AsyncWrite;
 use std::net::SocketAddr;
 use std::path::Path;
 
 use crate::TftpError;
 
-#[async_trait]
+#[crate::async_trait]
 pub trait Handle: Send {
     type Reader: AsyncRead + Unpin + Send + 'static;
+    #[cfg(feature = "unstable")]
     type Writer: AsyncWrite + Unpin + Send + 'static;
 
     async fn read_req_open(
@@ -16,6 +18,7 @@ pub trait Handle: Send {
         path: &Path,
     ) -> Result<(Self::Reader, Option<u64>), TftpError>;
 
+    #[cfg(feature = "unstable")]
     async fn read_req_served(
         &mut self,
         _client: &SocketAddr,
@@ -24,6 +27,7 @@ pub trait Handle: Send {
     ) {
     }
 
+    #[cfg(feature = "unstable")]
     async fn write_open(
         &mut self,
         client: &SocketAddr,
