@@ -1,4 +1,4 @@
-use async_std::net::{ToSocketAddrs, UdpSocket};
+use async_std::net::UdpSocket;
 use async_std::sync::Mutex;
 use async_std::task;
 use bytes::BytesMut;
@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::iter;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{info_span, trace};
 use tracing_futures::Instrument;
 
@@ -18,15 +19,26 @@ use crate::read_req::*;
 #[cfg(feature = "unstable")]
 use crate::write_req::*;
 
-pub struct AsyncTftpServer<H>
+pub struct TftpServer<H>
 where
     H: Handle,
 {
-    socket: Option<UdpSocket>,
-    handler: Arc<Mutex<H>>,
-    reqs_in_progress: HashSet<SocketAddr>,
-    buffer: BytesMut,
+    pub(crate) socket: Option<UdpSocket>,
+    pub(crate) handler: Arc<Mutex<H>>,
+    pub(crate) config: ServerConfig,
+    pub(crate) reqs_in_progress: HashSet<SocketAddr>,
+    pub(crate) buffer: BytesMut,
 }
+
+#[derive(Clone)]
+pub(crate) struct ServerConfig {
+    pub(crate) timeout: Duration,
+    pub(crate) maximum_block_size: Option<u16>,
+    pub(crate) ignore_client_timeout: bool,
+    pub(crate) ignore_client_block_size: bool,
+}
+
+pub(crate) const DEFAULT_BLOCK_SIZE: usize = 512;
 
 type ReqResult = std::result::Result<(SocketAddr), (SocketAddr, Error)>;
 
@@ -38,37 +50,18 @@ enum FutResults {
     ReqFinished(ReqResult),
 }
 
-impl<H: 'static> AsyncTftpServer<H>
+impl<H: 'static> TftpServer<H>
 where
     H: Handle,
 {
-    pub async fn bind<A>(handler: H, addr: A) -> Result<Self>
-    where
-        A: ToSocketAddrs,
-    {
-        Ok(AsyncTftpServer {
-            socket: Some(UdpSocket::bind(addr).await?),
-            handler: Arc::new(Mutex::new(handler)),
-            reqs_in_progress: HashSet::new(),
-            buffer: BytesMut::new(),
-        })
-    }
-
-    pub fn with_socket(handler: H, socket: UdpSocket) -> Result<Self> {
-        Ok(AsyncTftpServer {
-            socket: Some(socket),
-            handler: Arc::new(Mutex::new(handler)),
-            reqs_in_progress: HashSet::new(),
-            buffer: BytesMut::new(),
-        })
-    }
-
+    /// Returns the listenning socket address.
     pub fn local_addr(&self) -> Result<SocketAddr> {
         let socket =
             self.socket.as_ref().expect("tftp not initialized correctly");
         Ok(socket.local_addr()?)
     }
 
+    /// Consume and start the server
     pub async fn serve(mut self) -> Result<()> {
         let buf = vec![0u8; 4096];
         let socket =
@@ -165,6 +158,7 @@ where
         req: RwReq,
     ) -> task::JoinHandle<ReqResult> {
         let handler = Arc::clone(&self.handler);
+        let config = self.config.clone();
 
         task::spawn(
             async move {
@@ -178,7 +172,7 @@ where
                     .map_err(|e| (peer, Error::Tftp(e)))?;
 
                 let mut read_req =
-                    ReadRequest::init(&mut reader, size, peer, &req)
+                    ReadRequest::init(&mut reader, size, peer, &req, config)
                         .await
                         .map_err(|e| (peer, e))?;
 

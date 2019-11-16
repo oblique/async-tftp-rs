@@ -8,7 +8,7 @@ use crate::bytes_ext::BytesMutExt;
 use crate::error::*;
 use crate::parse::*;
 
-pub const PACKET_DATA_HEADER_LEN: usize = 4;
+pub(crate) const PACKET_DATA_HEADER_LEN: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, FromPrimitive)]
 #[repr(u16)]
@@ -35,7 +35,7 @@ pub enum TftpError {
 }
 
 #[derive(Debug)]
-pub enum Packet<'a> {
+pub(crate) enum Packet<'a> {
     Rrq(RwReq),
     Wrq(RwReq),
     Data(u16, &'a [u8]),
@@ -45,32 +45,32 @@ pub enum Packet<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Mode {
+pub(crate) enum Mode {
     Netascii,
     Octet,
     Mail,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct RwReq {
+pub(crate) struct RwReq {
     pub filename: String,
     pub mode: Mode,
     pub opts: Opts,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct Opts {
+pub(crate) struct Opts {
     pub block_size: Option<u16>,
     pub timeout: Option<u8>,
     pub transfer_size: Option<u64>,
 }
 
 impl<'a> Packet<'a> {
-    pub fn decode(data: &[u8]) -> Result<Packet> {
+    pub(crate) fn decode(data: &[u8]) -> Result<Packet> {
         parse_packet(data)
     }
 
-    pub fn encode(&self, buf: &mut BytesMut) {
+    pub(crate) fn encode(&self, buf: &mut BytesMut) {
         match self {
             Packet::Rrq(req) => {
                 buf.extend_u16_be(PacketType::Rrq as u16);
@@ -110,7 +110,7 @@ impl<'a> Packet<'a> {
         }
     }
 
-    pub fn encode_data_head(block_id: u16, buf: &mut BytesMut) {
+    pub(crate) fn encode_data_head(block_id: u16, buf: &mut BytesMut) {
         buf.extend_u16_be(PacketType::Data as u16);
         buf.extend_u16_be(block_id);
     }
@@ -139,7 +139,7 @@ impl Opts {
 }
 
 impl Mode {
-    pub fn to_str(&self) -> &'static str {
+    pub(crate) fn to_str(&self) -> &'static str {
         match self {
             Mode::Netascii => "netascii",
             Mode::Octet => "octet",
@@ -179,7 +179,7 @@ impl TftpError {
         }
     }
 
-    pub fn msg(&self) -> &str {
+    pub(crate) fn msg(&self) -> &str {
         match self {
             TftpError::Msg(msg) => msg,
             TftpError::UnknownError => "Unknown error",

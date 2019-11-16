@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_std::fs::File;
-use async_tftp::AsyncTftpServer;
 use async_tftp::TftpError;
+use async_tftp::TftpServerBuilder;
 use std::net::SocketAddr;
 use std::path::Path;
 use tracing::{info, Level};
@@ -18,6 +18,7 @@ impl Handler {
 #[async_tftp::async_trait]
 impl async_tftp::Handle for Handler {
     type Reader = File;
+    #[cfg(feature = "unstable")]
     type Writer = File;
 
     async fn read_req_open(
@@ -30,6 +31,7 @@ impl async_tftp::Handle for Handler {
         Ok((file, len))
     }
 
+    #[cfg(feature = "unstable")]
     async fn write_open(
         &mut self,
         _client: &SocketAddr,
@@ -49,7 +51,12 @@ async fn run() -> Result<()> {
 
     tracing::subscriber::set_global_default(subscriber)?;
 
-    let tftpd = AsyncTftpServer::bind(Handler::new(), "0.0.0.0:6969").await?;
+    let tftpd = TftpServerBuilder::new(Handler::new())
+        .bind("0.0.0.0:6969".parse().unwrap())
+        // Workaround to handle cases that client is behind VPN
+        .maximum_block_size(1024)
+        .build()
+        .await?;
 
     info!("Listening on: {}", tftpd.local_addr()?);
     tftpd.serve().await?;

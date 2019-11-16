@@ -4,7 +4,7 @@ use async_std::task;
 
 use super::external_client::*;
 use super::handles::*;
-use crate::AsyncTftpServer;
+use crate::TftpServerBuilder;
 
 fn transfer(file_size: usize) {
     task::block_on(async {
@@ -12,7 +12,11 @@ fn transfer(file_size: usize) {
         let md5 = handle.md5();
 
         // bind
-        let tftpd = AsyncTftpServer::bind(handle, "127.0.0.1:0").await.unwrap();
+        let tftpd = TftpServerBuilder::new(handle)
+            .bind("127.0.0.1:0".parse().unwrap())
+            .build()
+            .await
+            .unwrap();
         let addr = tftpd.local_addr().unwrap();
 
         // start client

@@ -1,6 +1,7 @@
 use async_std::net::UdpSocket;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::io::{AsyncRead, AsyncReadExt};
+use std::cmp;
 use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -9,82 +10,62 @@ use tracing_futures::Instrument;
 
 use crate::error::*;
 use crate::packet::*;
+use crate::server::{ServerConfig, DEFAULT_BLOCK_SIZE};
 
-const DEFAULT_TIMEOUT_SECS: Duration = Duration::from_secs(3);
-const DEFAULT_BLOCK_SIZE: usize = 512;
-
-pub struct ReadRequest<'r, R>
+pub(crate) struct ReadRequest<'r, R>
 where
     R: AsyncRead + Send,
 {
     peer: SocketAddr,
     socket: UdpSocket,
     reader: &'r mut R,
+    buffer: BytesMut,
     block_id: u16,
     block_size: usize,
     timeout: Duration,
     oack_opts: Option<Opts>,
-    buffer: BytesMut,
 }
 
 impl<'r, R> ReadRequest<'r, R>
 where
     R: AsyncRead + Send + Unpin,
 {
-    pub async fn init(
+    pub(crate) async fn init(
         reader: &'r mut R,
         file_size: Option<u64>,
         peer: SocketAddr,
         req: &RwReq,
+        config: ServerConfig,
     ) -> Result<ReadRequest<'r, R>> {
-        let mut oack_opts = Opts::default();
-        let mut send_oack = false;
+        let oack_opts = build_oack_opts(&config, req, file_size);
 
-        let block_size = match req.opts.block_size {
-            Some(size) if size <= 1024 => {
-                send_oack = true;
-                oack_opts.block_size = Some(size);
-                usize::from(size)
-            }
-            _ => DEFAULT_BLOCK_SIZE,
-        };
+        let block_size = oack_opts
+            .as_ref()
+            .and_then(|o| o.block_size)
+            .map(usize::from)
+            .unwrap_or(DEFAULT_BLOCK_SIZE);
 
-        let timeout = match req.opts.timeout {
-            Some(timeout) => {
-                send_oack = true;
-                oack_opts.timeout = Some(timeout);
-                Duration::from_secs(u64::from(timeout))
-            }
-            None => DEFAULT_TIMEOUT_SECS,
-        };
-
-        if let (Some(0), Some(file_size)) = (req.opts.transfer_size, file_size)
-        {
-            send_oack = true;
-            oack_opts.transfer_size = Some(file_size);
-        }
-
-        let oack_opts = if send_oack {
-            Some(oack_opts)
-        } else {
-            None
-        };
+        let timeout = oack_opts
+            .as_ref()
+            .and_then(|o| o.timeout)
+            .map(|t| Duration::from_secs(u64::from(t)))
+            .unwrap_or(config.timeout);
 
         Ok(ReadRequest {
             peer,
             socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
             reader,
+            buffer: BytesMut::with_capacity(
+                PACKET_DATA_HEADER_LEN + block_size,
+            ),
             block_id: 0,
             block_size,
             timeout,
             oack_opts,
-            buffer: BytesMut::with_capacity(
-                PACKET_DATA_HEADER_LEN + block_size,
-            ),
         })
     }
 
-    pub async fn handle(&mut self) {
+    pub(crate) async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
             Packet::Error(e.into()).encode(&mut self.buffer);
             let buf = self.buffer.take().freeze();
@@ -209,5 +190,36 @@ where
         }
 
         Ok(len)
+    }
+}
+
+fn build_oack_opts(
+    config: &ServerConfig,
+    req: &RwReq,
+    file_size: Option<u64>,
+) -> Option<Opts> {
+    let mut opts = Opts::default();
+
+    if !config.ignore_client_block_size {
+        opts.block_size = match (req.opts.block_size, config.maximum_block_size)
+        {
+            (Some(bsize), Some(max_bsize)) => Some(cmp::min(bsize, max_bsize)),
+            (Some(bsize), None) => Some(bsize),
+            _ => None,
+        };
+    }
+
+    if !config.ignore_client_timeout {
+        opts.timeout = req.opts.timeout;
+    }
+
+    if let (Some(0), Some(file_size)) = (req.opts.transfer_size, file_size) {
+        opts.transfer_size = Some(file_size);
+    }
+
+    if opts == Opts::default() {
+        None
+    } else {
+        Some(opts)
     }
 }

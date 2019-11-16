@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use futures::io::Sink;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -26,9 +25,10 @@ impl RandomHandle {
     }
 }
 
-#[async_trait]
+#[crate::async_trait]
 impl Handle for RandomHandle {
     type Reader = RandomFile;
+    #[cfg(feature = "unstable")]
     type Writer = Sink;
 
     async fn read_req_open(
@@ -49,6 +49,7 @@ impl Handle for RandomHandle {
         *md5 = Some(reader.hash());
     }
 
+    #[cfg(feature = "unstable")]
     async fn write_open(
         &mut self,
         _client: &SocketAddr,
