@@ -22,7 +22,7 @@ pub(crate) enum PacketType {
 }
 
 #[derive(Debug, Clone)]
-pub enum TftpError {
+pub enum Error {
     Msg(String),
     UnknownError,
     FileNotFound,
@@ -40,7 +40,7 @@ pub(crate) enum Packet<'a> {
     Wrq(RwReq),
     Data(u16, &'a [u8]),
     Ack(u16),
-    Error(TftpError),
+    Error(Error),
     OAck(Opts),
 }
 
@@ -148,80 +148,80 @@ impl Mode {
     }
 }
 
-impl TftpError {
+impl Error {
     pub(crate) fn from_code(code: u16, msg: Option<&str>) -> Self {
         match code {
-            1 => TftpError::FileNotFound,
-            2 => TftpError::PermissionDenied,
-            3 => TftpError::DiskFull,
-            4 => TftpError::IllegalOperation,
-            5 => TftpError::UnknownTransferId,
-            6 => TftpError::FileAlreadyExists,
-            7 => TftpError::NoSuchUser,
+            1 => Error::FileNotFound,
+            2 => Error::PermissionDenied,
+            3 => Error::DiskFull,
+            4 => Error::IllegalOperation,
+            5 => Error::UnknownTransferId,
+            6 => Error::FileAlreadyExists,
+            7 => Error::NoSuchUser,
             0 | _ => match msg {
-                Some(msg) => TftpError::Msg(msg.to_string()),
-                None => TftpError::UnknownError,
+                Some(msg) => Error::Msg(msg.to_string()),
+                None => Error::UnknownError,
             },
         }
     }
 
     pub(crate) fn code(&self) -> u16 {
         match self {
-            TftpError::Msg(..) => 0,
-            TftpError::UnknownError => 0,
-            TftpError::FileNotFound => 1,
-            TftpError::PermissionDenied => 2,
-            TftpError::DiskFull => 3,
-            TftpError::IllegalOperation => 4,
-            TftpError::UnknownTransferId => 5,
-            TftpError::FileAlreadyExists => 6,
-            TftpError::NoSuchUser => 7,
+            Error::Msg(..) => 0,
+            Error::UnknownError => 0,
+            Error::FileNotFound => 1,
+            Error::PermissionDenied => 2,
+            Error::DiskFull => 3,
+            Error::IllegalOperation => 4,
+            Error::UnknownTransferId => 5,
+            Error::FileAlreadyExists => 6,
+            Error::NoSuchUser => 7,
         }
     }
 
     pub(crate) fn msg(&self) -> &str {
         match self {
-            TftpError::Msg(msg) => msg,
-            TftpError::UnknownError => "Unknown error",
-            TftpError::FileNotFound => "File not found",
-            TftpError::PermissionDenied => "Permission denied",
-            TftpError::DiskFull => "Disk is full",
-            TftpError::IllegalOperation => "Illegal operation",
-            TftpError::UnknownTransferId => "Unknown transfer ID",
-            TftpError::FileAlreadyExists => "File already exists",
-            TftpError::NoSuchUser => "No such user",
+            Error::Msg(msg) => msg,
+            Error::UnknownError => "Unknown error",
+            Error::FileNotFound => "File not found",
+            Error::PermissionDenied => "Permission denied",
+            Error::DiskFull => "Disk is full",
+            Error::IllegalOperation => "Illegal operation",
+            Error::UnknownTransferId => "Unknown transfer ID",
+            Error::FileAlreadyExists => "File already exists",
+            Error::NoSuchUser => "No such user",
         }
     }
 }
 
-impl From<TftpError> for Packet<'_> {
-    fn from(inner: TftpError) -> Self {
+impl From<Error> for Packet<'_> {
+    fn from(inner: Error) -> Self {
         Packet::Error(inner)
     }
 }
 
-impl From<io::Error> for TftpError {
+impl From<io::Error> for Error {
     fn from(io_err: io::Error) -> Self {
         match io_err.kind() {
-            io::ErrorKind::NotFound => TftpError::FileNotFound,
-            io::ErrorKind::PermissionDenied => TftpError::PermissionDenied,
-            io::ErrorKind::WriteZero => TftpError::DiskFull,
-            io::ErrorKind::AlreadyExists => TftpError::FileAlreadyExists,
+            io::ErrorKind::NotFound => Error::FileNotFound,
+            io::ErrorKind::PermissionDenied => Error::PermissionDenied,
+            io::ErrorKind::WriteZero => Error::DiskFull,
+            io::ErrorKind::AlreadyExists => Error::FileAlreadyExists,
             _ => match io_err.raw_os_error() {
-                Some(rc) => TftpError::Msg(format!("IO error: {}", rc)),
-                None => TftpError::UnknownError,
+                Some(rc) => Error::Msg(format!("IO error: {}", rc)),
+                None => Error::UnknownError,
             },
         }
     }
 }
 
-impl From<crate::Error> for TftpError {
+impl From<crate::Error> for Error {
     fn from(err: crate::Error) -> Self {
         match err {
-            Error::Tftp(e) => e,
-            Error::Io(e) => e.into(),
-            Error::InvalidPacket => TftpError::IllegalOperation,
-            _ => TftpError::UnknownError,
+            crate::Error::Packet(e) => e,
+            crate::Error::Io(e) => e.into(),
+            crate::Error::InvalidPacket => Error::IllegalOperation,
+            _ => Error::UnknownError,
         }
     }
 }

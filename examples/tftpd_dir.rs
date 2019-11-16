@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_std::fs::File;
-use async_tftp::TftpError;
+use async_tftp::packet;
 use async_tftp::TftpServerBuilder;
 use std::net::SocketAddr;
 use std::path::Path;
@@ -25,7 +25,7 @@ impl async_tftp::Handle for Handler {
         &mut self,
         _client: &SocketAddr,
         path: &Path,
-    ) -> Result<(Self::Reader, Option<u64>), TftpError> {
+    ) -> Result<(Self::Reader, Option<u64>), packet::Error> {
         let file = File::open(path).await?;
         let len = file.metadata().await.ok().map(|m| m.len());
         Ok((file, len))
@@ -37,7 +37,7 @@ impl async_tftp::Handle for Handler {
         _client: &SocketAddr,
         path: &Path,
         _size: Option<u64>,
-    ) -> Result<Self::Writer, TftpError> {
+    ) -> Result<Self::Writer, packet::Error> {
         let file = File::create(path).await?;
         Ok(file)
     }
@@ -53,7 +53,7 @@ async fn run() -> Result<()> {
 
     let tftpd = TftpServerBuilder::new(Handler::new())
         .bind("0.0.0.0:6969".parse().unwrap())
-        // Workaround to handle cases that client is behind VPN
+        // Workaround to handle cases where client is behind VPN
         .maximum_block_size(1024)
         .build()
         .await?;

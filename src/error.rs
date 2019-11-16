@@ -8,7 +8,7 @@ pub enum Error {
     InvalidPacket,
 
     #[error("TFTP error: {0:?}")]
-    Tftp(crate::TftpError),
+    Packet(crate::packet::Error),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),

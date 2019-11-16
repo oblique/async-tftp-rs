@@ -4,8 +4,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use super::random_file::RandomFile;
+use crate::packet;
 use crate::Handle;
-use crate::TftpError;
 
 pub struct RandomHandle {
     md5: Arc<Mutex<Option<md5::Digest>>>,
@@ -35,7 +35,7 @@ impl Handle for RandomHandle {
         &mut self,
         _client: &SocketAddr,
         _path: &Path,
-    ) -> Result<(Self::Reader, Option<u64>), TftpError> {
+    ) -> Result<(Self::Reader, Option<u64>), packet::Error> {
         Ok((RandomFile::new(self.file_size), None))
     }
 
@@ -55,7 +55,7 @@ impl Handle for RandomHandle {
         _client: &SocketAddr,
         _path: &Path,
         _size: Option<u64>,
-    ) -> Result<Self::Writer, TftpError> {
-        Err(TftpError::IllegalOperation)
+    ) -> Result<Self::Writer, packet::Error> {
+        Err(packet::Error::IllegalOperation)
     }
 }

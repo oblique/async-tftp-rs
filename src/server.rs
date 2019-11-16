@@ -169,7 +169,7 @@ where
                     .await
                     .read_req_open(&peer, req.filename.as_ref())
                     .await
-                    .map_err(|e| (peer, Error::Tftp(e)))?;
+                    .map_err(|e| (peer, Error::Packet(e)))?;
 
                 let mut read_req =
                     ReadRequest::init(&mut reader, size, peer, &req, config)
@@ -212,7 +212,7 @@ where
                         req.opts.transfer_size,
                     )
                     .await
-                    .map_err(|e| (peer, Error::Tftp(e)))?
+                    .map_err(|e| (peer, Error::Packet(e)))?
             };
 
             let mut write_req = WriteRequest::init(writer, peer, req)

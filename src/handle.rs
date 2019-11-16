@@ -4,7 +4,7 @@ use futures::AsyncWrite;
 use std::net::SocketAddr;
 use std::path::Path;
 
-use crate::TftpError;
+use crate::packet;
 
 #[crate::async_trait]
 pub trait Handle: Send {
@@ -16,7 +16,7 @@ pub trait Handle: Send {
         &mut self,
         client: &SocketAddr,
         path: &Path,
-    ) -> Result<(Self::Reader, Option<u64>), TftpError>;
+    ) -> Result<(Self::Reader, Option<u64>), packet::Error>;
 
     #[cfg(feature = "unstable")]
     async fn read_req_served(
@@ -33,5 +33,5 @@ pub trait Handle: Send {
         client: &SocketAddr,
         path: &Path,
         size: Option<u64>,
-    ) -> Result<Self::Writer, TftpError>;
+    ) -> Result<Self::Writer, packet::Error>;
 }
