@@ -34,7 +34,7 @@ impl DirRoHandler {
 }
 
 #[crate::async_trait]
-impl crate::server::Handle for DirRoHandler {
+impl crate::server::Handler for DirRoHandler {
     type Reader = File;
     #[cfg(feature = "unstable")]
     type Writer = Sink;

@@ -5,16 +5,16 @@ use std::sync::{Arc, Mutex};
 
 use super::random_file::RandomFile;
 use crate::packet;
-use crate::server::Handle;
+use crate::server::Handler;
 
-pub struct RandomHandle {
+pub struct RandomHandler {
     md5: Arc<Mutex<Option<md5::Digest>>>,
     file_size: usize,
 }
 
-impl RandomHandle {
+impl RandomHandler {
     pub fn new(file_size: usize) -> Self {
-        RandomHandle {
+        RandomHandler {
             md5: Arc::new(Mutex::new(None)),
             file_size,
         }
@@ -26,7 +26,7 @@ impl RandomHandle {
 }
 
 #[crate::async_trait]
-impl Handle for RandomHandle {
+impl Handler for RandomHandler {
     type Reader = RandomFile;
     #[cfg(feature = "unstable")]
     type Writer = Sink;

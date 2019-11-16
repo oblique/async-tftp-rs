@@ -7,7 +7,7 @@ use std::path::Path;
 use crate::packet;
 
 #[crate::async_trait]
-pub trait Handle: Send {
+pub trait Handler: Send {
     type Reader: AsyncRead + Unpin + Send + 'static;
     #[cfg(feature = "unstable")]
     type Writer: AsyncWrite + Unpin + Send + 'static;

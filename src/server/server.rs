@@ -15,13 +15,13 @@ use tracing_futures::Instrument;
 use super::read_req::*;
 #[cfg(feature = "unstable")]
 use super::write_req::*;
-use super::Handle;
+use super::Handler;
 use crate::error::*;
 use crate::packet::*;
 
 pub struct TftpServer<H>
 where
-    H: Handle,
+    H: Handler,
 {
     pub(crate) socket: Option<UdpSocket>,
     pub(crate) handler: Arc<Mutex<H>>,
@@ -52,7 +52,7 @@ enum FutResults {
 
 impl<H: 'static> TftpServer<H>
 where
-    H: Handle,
+    H: Handler,
 {
     /// Returns the listenning socket address.
     pub fn local_addr(&self) -> Result<SocketAddr> {

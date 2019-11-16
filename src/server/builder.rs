@@ -8,10 +8,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use super::handlers::DirRoHandler;
-use super::{Handle, ServerConfig, TftpServer};
+use super::{Handler, ServerConfig, TftpServer};
 use crate::error::Result;
 
-pub struct TftpServerBuilder<H: Handle> {
+pub struct TftpServerBuilder<H: Handler> {
     handle: H,
     addr: SocketAddr,
     socket: Option<UdpSocket>,
@@ -32,7 +32,7 @@ impl TftpServerBuilder<DirRoHandler> {
     }
 }
 
-impl<H: Handle> TftpServerBuilder<H> {
+impl<H: Handler> TftpServerBuilder<H> {
     /// Create new builder.
     pub fn with_handler(handler: H) -> Self {
         TftpServerBuilder {
