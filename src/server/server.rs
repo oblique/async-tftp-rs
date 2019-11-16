@@ -12,15 +12,12 @@ use std::time::Duration;
 use tracing::{info_span, trace};
 use tracing_futures::Instrument;
 
+use super::read_req::*;
+#[cfg(feature = "unstable")]
+use super::write_req::*;
+use super::Handle;
 use crate::error::*;
 use crate::packet::*;
-use crate::read_req::*;
-#[cfg(feature = "unstable")]
-use crate::write_req::*;
-
-// re-exports
-pub use crate::handle::Handle;
-pub use crate::server_builder::TftpServerBuilder;
 
 pub struct TftpServer<H>
 where

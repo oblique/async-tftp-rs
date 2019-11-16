@@ -6,9 +6,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::{Handle, ServerConfig, TftpServer};
 use crate::error::Result;
-use crate::handle::Handle;
-use crate::server::{ServerConfig, TftpServer};
 
 pub struct TftpServerBuilder<H: Handle> {
     handle: H,
