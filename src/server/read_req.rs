@@ -5,7 +5,7 @@ use std::cmp;
 use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tracing::{debug_span, trace};
+use tracing::{trace, trace_span};
 use tracing_futures::Instrument;
 
 use crate::error::*;
@@ -110,7 +110,7 @@ where
             };
 
             // Send Data packet
-            let span = debug_span!("", block_id = %self.block_id);
+            let span = trace_span!("", block_id = %self.block_id);
             self.send(buf, self.block_id).instrument(span).await?;
 
             if is_last_block {

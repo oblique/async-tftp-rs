@@ -9,7 +9,7 @@ use std::iter;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{info_span, trace};
+use tracing::{trace, trace_span};
 use tracing_futures::Instrument;
 
 use super::read_req::*;
@@ -187,7 +187,7 @@ where
 
                 Ok(peer)
             }
-                .instrument(info_span!("RRQ", %peer)),
+                .instrument(trace_span!("RRQ", %peer)),
         )
     }
 
