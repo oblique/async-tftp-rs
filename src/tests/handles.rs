@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use super::random_file::RandomFile;
 use crate::packet;
-use crate::Handle;
+use crate::server::Handle;
 
 pub struct RandomHandle {
     md5: Arc<Mutex<Option<md5::Digest>>>,

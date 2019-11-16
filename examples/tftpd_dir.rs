@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_std::fs::File;
 use async_tftp::packet;
-use async_tftp::TftpServerBuilder;
+use async_tftp::server::TftpServerBuilder;
 use std::net::SocketAddr;
 use std::path::Path;
 use tracing::{info, Level};
@@ -16,7 +16,7 @@ impl Handler {
 }
 
 #[async_tftp::async_trait]
-impl async_tftp::Handle for Handler {
+impl async_tftp::server::Handle for Handler {
     type Reader = File;
     #[cfg(feature = "unstable")]
     type Writer = File;

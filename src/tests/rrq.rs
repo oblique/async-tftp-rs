@@ -4,7 +4,7 @@ use async_std::task;
 
 use super::external_client::*;
 use super::handles::*;
-use crate::TftpServerBuilder;
+use crate::server::TftpServerBuilder;
 
 fn transfer(file_size: usize) {
     task::block_on(async {
