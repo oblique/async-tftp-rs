@@ -3,9 +3,11 @@ use async_std::sync::Mutex;
 use bytes::BytesMut;
 use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::handlers::DirRoHandler;
 use super::{Handle, ServerConfig, TftpServer};
 use crate::error::Result;
 
@@ -19,11 +21,22 @@ pub struct TftpServerBuilder<H: Handle> {
     ignore_client_block_size: bool,
 }
 
+impl TftpServerBuilder<DirRoHandler> {
+    /// Create new buidler that handles only read requests for a directory.
+    pub fn with_dir_ro<P>(dir: P) -> Result<TftpServerBuilder<DirRoHandler>>
+    where
+        P: AsRef<Path>,
+    {
+        let handler = DirRoHandler::new(dir)?;
+        Ok(TftpServerBuilder::with_handler(handler))
+    }
+}
+
 impl<H: Handle> TftpServerBuilder<H> {
     /// Create new builder.
-    pub fn new(handle: H) -> Self {
+    pub fn with_handler(handler: H) -> Self {
         TftpServerBuilder {
-            handle,
+            handle: handler,
             addr: "0.0.0.0:69".parse().unwrap(),
             socket: None,
             timeout: Duration::from_secs(3),

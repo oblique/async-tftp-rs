@@ -12,7 +12,7 @@ fn transfer(file_size: usize) {
         let md5 = handle.md5();
 
         // bind
-        let tftpd = TftpServerBuilder::new(handle)
+        let tftpd = TftpServerBuilder::with_handler(handle)
             .bind("127.0.0.1:0".parse().unwrap())
             .build()
             .await
