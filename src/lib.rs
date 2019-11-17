@@ -1,7 +1,7 @@
 //! This library provides TFTP async implementation.
 //!
-//! Currently it implements only server side which can serve read requests.
-//! This is the most used scenario in our modern days.
+//! Currently it implements only server side which can serve read
+//! requests, which is the most prominent scenario used.
 //!
 //! The following RFCs are implemented:
 //!

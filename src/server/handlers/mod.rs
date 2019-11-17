@@ -1,4 +1,4 @@
-//! Common use-case handlers.
+//! Handlers for common use-cases.
 
 mod dir_ro;
 

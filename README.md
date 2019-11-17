@@ -4,9 +4,9 @@
 [![crates.io][crate badge]][crate]
 [![docs][docs badge]][docs]
 
-This library provides TFTP async implementation. Currently it implements only
-server side which can serve read requests. This is the most used scenario in
-our modern days.
+This library provides TFTP async implementation. Currently it
+implements only server side which can serve read requests, which
+is the most prominent scenario used.
 
 ## Example
 
