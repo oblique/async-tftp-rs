@@ -5,15 +5,16 @@
 //!
 //! The following RFCs are implemented:
 //!
-//! * [RFC 1350]
-//! * [RFC 2347]
-//! * [RFC 2348]
-//! * [RFC 2349]
+//! * [RFC 1350] - The TFTP Protocol (Revision 2).
+//! * [RFC 2347] - TFTP Option Extension.
+//! * [RFC 2348] - TFTP Blocksize Option.
+//! * [RFC 2349] - TFTP Timeout Interval and Transfer Size Options.
 //!
 //! Features:
 //!
 //! * Async implementation.
 //! * Serve read requests.
+//! * Unlimited transfer file size (block number roll-over).
 //! * You can set non-standard reply [`timeout`]. This is useful for faster
 //!   file transfer in unstable environments.
 //! * You can set [block size limit]. This is useful if you are accessing
