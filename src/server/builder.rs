@@ -16,7 +16,7 @@ pub struct TftpServerBuilder<H: Handler> {
     addr: SocketAddr,
     socket: Option<UdpSocket>,
     timeout: Duration,
-    maximum_block_size: Option<u16>,
+    block_size_limit: Option<u16>,
     ignore_client_timeout: bool,
     ignore_client_block_size: bool,
 }
@@ -40,7 +40,7 @@ impl<H: Handler> TftpServerBuilder<H> {
             addr: "0.0.0.0:69".parse().unwrap(),
             socket: None,
             timeout: Duration::from_secs(3),
-            maximum_block_size: None,
+            block_size_limit: None,
             ignore_client_timeout: false,
             ignore_client_block_size: false,
         }
@@ -93,9 +93,9 @@ impl<H: Handler> TftpServerBuilder<H> {
     /// block size of 1468. This works fine if your MTU is 1500 bytes, however if
     /// you are accessing client through a VPN, then transfer will never start. Use
     /// this option to workaround the problem.
-    pub fn maximum_block_size(self, size: u16) -> Self {
+    pub fn block_size_limit(self, size: u16) -> Self {
         TftpServerBuilder {
-            maximum_block_size: Some(size),
+            block_size_limit: Some(size),
             ..self
         }
     }
@@ -131,7 +131,7 @@ impl<H: Handler> TftpServerBuilder<H> {
 
         let config = ServerConfig {
             timeout: self.timeout,
-            maximum_block_size: self.maximum_block_size,
+            block_size_limit: self.block_size_limit,
             ignore_client_timeout: self.ignore_client_timeout,
             ignore_client_block_size: self.ignore_client_block_size,
         };

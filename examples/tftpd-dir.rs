@@ -6,7 +6,7 @@ async fn run() -> Result<()> {
     let tftpd = TftpServerBuilder::with_dir_ro(".")?
         .bind("0.0.0.0:6969".parse().unwrap())
         // Workaround to handle cases where client is behind VPN
-        .maximum_block_size(1024)
+        .block_size_limit(1024)
         .build()
         .await?;
 

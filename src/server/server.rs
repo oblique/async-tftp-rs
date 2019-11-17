@@ -31,7 +31,7 @@ where
 #[derive(Clone)]
 pub(crate) struct ServerConfig {
     pub(crate) timeout: Duration,
-    pub(crate) maximum_block_size: Option<u16>,
+    pub(crate) block_size_limit: Option<u16>,
     pub(crate) ignore_client_timeout: bool,
     pub(crate) ignore_client_block_size: bool,
 }

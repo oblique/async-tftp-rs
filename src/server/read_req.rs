@@ -205,9 +205,8 @@ fn build_oack_opts(
     let mut opts = Opts::default();
 
     if !config.ignore_client_block_size {
-        opts.block_size = match (req.opts.block_size, config.maximum_block_size)
-        {
-            (Some(bsize), Some(max_bsize)) => Some(cmp::min(bsize, max_bsize)),
+        opts.block_size = match (req.opts.block_size, config.block_size_limit) {
+            (Some(bsize), Some(limit)) => Some(cmp::min(bsize, limit)),
             (Some(bsize), None) => Some(bsize),
             _ => None,
         };
