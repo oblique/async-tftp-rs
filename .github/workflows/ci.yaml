@@ -3,7 +3,7 @@ on: [push, pull_request]
 
 jobs:
     test-linux:
-        name: Run tests on Linux
+        name: Tests
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
