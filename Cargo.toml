@@ -1,9 +1,10 @@
 [package]
 name = "async-tftp"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["oblique <psyberbits@gmail.com>"]
 edition = "2018"
 license = "MIT"
+readme = "README.md"
 
 description = "Async TFTP implementation"
 categories = ["network-programming"]
