@@ -1,6 +1,7 @@
 #![cfg(feature = "external-client-tests")]
 
 use async_std::task;
+use futures::channel::oneshot;
 
 use super::external_client::*;
 use super::handlers::*;
@@ -8,8 +9,8 @@ use crate::server::TftpServerBuilder;
 
 fn transfer(file_size: usize) {
     task::block_on(async {
-        let handler = RandomHandler::new(file_size);
-        let md5 = handler.md5();
+        let (md5_tx, md5_rx) = oneshot::channel();
+        let handler = RandomHandler::new(file_size, md5_tx);
 
         // bind
         let tftpd = TftpServerBuilder::with_handler(handler)
@@ -24,12 +25,14 @@ fn transfer(file_size: usize) {
             task::spawn_blocking(move || external_tftp_recv("test", addr));
 
         // start server
-        tftpd.serve().await.unwrap();
+        task::spawn(async move {
+            tftpd.serve().await.unwrap();
+        });
 
         // check md5
-        let recved_md5 = tftp_recv.await.expect("failed to run tftp client");
-        let sent_md5 = md5.lock().unwrap().expect("no md5");
-        assert_eq!(recved_md5, sent_md5);
+        let client_md5 = tftp_recv.await.expect("failed to run tftp client");
+        let server_md5 = md5_rx.await.expect("failed to receive server md5");
+        assert_eq!(client_md5, server_md5);
     });
 }
 

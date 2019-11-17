@@ -96,26 +96,15 @@ where
                     // Send the error and ignore errors while sending it.
                     let _ = self.send_error(e, peer).await;
                     self.reqs_in_progress.remove(&peer);
-
-                    // Serve only one request for tests
-                    #[cfg(test)]
-                    break;
                 }
                 // Request is served
                 FutResults::ReqFinished(Ok(peer)) => {
                     self.reqs_in_progress.remove(&peer);
-
-                    // Serve only one request for tests
-                    #[cfg(test)]
-                    break;
                 }
             }
 
             select_fut = select_all(remaining_futs.into_iter());
         }
-
-        #[cfg(test)]
-        Ok(())
     }
 
     async fn handle_req_packet<'a>(
@@ -170,13 +159,6 @@ where
                     .map_err(|e| (peer, e))?;
 
             read_req.handle().await;
-
-            #[cfg(feature = "unstable")]
-            handler
-                .lock()
-                .await
-                .read_req_served(&peer, req.filename.as_ref(), reader)
-                .await;
 
             Ok(peer)
         })

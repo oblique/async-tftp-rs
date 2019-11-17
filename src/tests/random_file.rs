@@ -1,3 +1,4 @@
+use futures::channel::oneshot;
 use futures::io::AsyncRead;
 use rand::rngs::SmallRng;
 use rand::{RngCore, SeedableRng};
@@ -11,30 +12,30 @@ pub struct RandomFile {
     read_size: usize,
     rng: SmallRng,
     md5_ctx: Option<md5::Context>,
-    md5: Option<md5::Digest>,
+    md5_tx: Option<oneshot::Sender<md5::Digest>>,
 }
 
 impl RandomFile {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: usize, md5_tx: oneshot::Sender<md5::Digest>) -> Self {
         RandomFile {
             size,
             read_size: 0,
             rng: SmallRng::from_entropy(),
             md5_ctx: Some(md5::Context::new()),
-            md5: None,
+            md5_tx: Some(md5_tx),
         }
-    }
-
-    pub fn hash(&self) -> md5::Digest {
-        self.md5.expect("md5 was not computed yet").clone()
     }
 }
 
 impl Read for RandomFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.size == self.read_size {
-            if let Some(md5_ctx) = self.md5_ctx.take() {
-                self.md5 = Some(md5_ctx.compute());
+            if let (Some(md5_ctx), Some(md5_tx)) =
+                (self.md5_ctx.take(), self.md5_tx.take())
+            {
+                md5_tx
+                    .send(md5_ctx.compute())
+                    .expect("failed to send md5 digest");
             }
 
             Ok(0)

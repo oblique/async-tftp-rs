@@ -1,27 +1,23 @@
+use futures::channel::oneshot;
 use futures::io::Sink;
 use std::net::SocketAddr;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 use super::random_file::RandomFile;
 use crate::packet;
 use crate::server::Handler;
 
 pub struct RandomHandler {
-    md5: Arc<Mutex<Option<md5::Digest>>>,
+    md5_tx: Option<oneshot::Sender<md5::Digest>>,
     file_size: usize,
 }
 
 impl RandomHandler {
-    pub fn new(file_size: usize) -> Self {
+    pub fn new(file_size: usize, md5_tx: oneshot::Sender<md5::Digest>) -> Self {
         RandomHandler {
-            md5: Arc::new(Mutex::new(None)),
+            md5_tx: Some(md5_tx),
             file_size,
         }
-    }
-
-    pub fn md5(&self) -> Arc<Mutex<Option<md5::Digest>>> {
-        self.md5.clone()
     }
 }
 
@@ -36,17 +32,8 @@ impl Handler for RandomHandler {
         _client: &SocketAddr,
         _path: &Path,
     ) -> Result<(Self::Reader, Option<u64>), packet::Error> {
-        Ok((RandomFile::new(self.file_size), None))
-    }
-
-    async fn read_req_served(
-        &mut self,
-        _client: &SocketAddr,
-        _path: &Path,
-        reader: Self::Reader,
-    ) {
-        let mut md5 = self.md5.lock().unwrap();
-        *md5 = Some(reader.hash());
+        let md5_tx = self.md5_tx.take().expect("md5_tx already consumed");
+        Ok((RandomFile::new(self.file_size, md5_tx), None))
     }
 
     #[cfg(feature = "unstable")]
