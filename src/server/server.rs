@@ -9,8 +9,6 @@ use std::iter;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{trace, trace_span};
-use tracing_futures::Instrument;
 
 use super::read_req::*;
 #[cfg(feature = "unstable")]
@@ -92,11 +90,7 @@ where
                 }
                 // Request finished with an error
                 FutResults::ReqFinished(Err((peer, e))) => {
-                    trace!(
-                        "Failed to handle request for peer {}. Error: {}",
-                        peer,
-                        e
-                    );
+                    log!("Request failed (peer: {}, error: {}", &peer, &e);
 
                     // Send the error and ignore errors while sending it.
                     let _ = self.send_error(e, peer).await;
@@ -108,7 +102,6 @@ where
                 }
                 // Request is served
                 FutResults::ReqFinished(Ok(peer)) => {
-                    trace!("Request for peer {} is served", peer);
                     self.reqs_in_progress.remove(&peer);
 
                     // Serve only one request for tests
@@ -157,38 +150,35 @@ where
         peer: SocketAddr,
         req: RwReq,
     ) -> task::JoinHandle<ReqResult> {
+        log!("RRQ recieved (peer: {}, req: {:?})", &peer, &req);
+
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
 
-        task::spawn(
-            async move {
-                trace!("{:?}", req);
+        task::spawn(async move {
+            let (mut reader, size) = handler
+                .lock()
+                .await
+                .read_req_open(&peer, req.filename.as_ref())
+                .await
+                .map_err(|e| (peer, Error::Packet(e)))?;
 
-                let (mut reader, size) = handler
-                    .lock()
+            let mut read_req =
+                ReadRequest::init(&mut reader, size, peer, &req, config)
                     .await
-                    .read_req_open(&peer, req.filename.as_ref())
-                    .await
-                    .map_err(|e| (peer, Error::Packet(e)))?;
+                    .map_err(|e| (peer, e))?;
 
-                let mut read_req =
-                    ReadRequest::init(&mut reader, size, peer, &req, config)
-                        .await
-                        .map_err(|e| (peer, e))?;
+            read_req.handle().await;
 
-                read_req.handle().await;
+            #[cfg(feature = "unstable")]
+            handler
+                .lock()
+                .await
+                .read_req_served(&peer, req.filename.as_ref(), reader)
+                .await;
 
-                #[cfg(feature = "unstable")]
-                handler
-                    .lock()
-                    .await
-                    .read_req_served(&peer, req.filename.as_ref(), reader)
-                    .await;
-
-                Ok(peer)
-            }
-                .instrument(trace_span!("RRQ", %peer)),
-        )
+            Ok(peer)
+        })
     }
 
     #[cfg(feature = "unstable")]
@@ -197,11 +187,10 @@ where
         peer: SocketAddr,
         req: RwReq,
     ) -> task::JoinHandle<ReqResult> {
+        log!("WRQ recieved (peer: {}, req: {:?})", &peer, &req);
         let task_handler = Arc::clone(&self.handler);
 
         task::spawn(async move {
-            trace!("WRQ (peer: {}) - {:?}", peer, req);
-
             let writer = {
                 let mut handler = task_handler.lock().await;
 

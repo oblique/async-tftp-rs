@@ -5,8 +5,6 @@ use std::cmp;
 use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tracing::{trace, trace_span};
-use tracing_futures::Instrument;
 
 use crate::error::*;
 use crate::packet::*;
@@ -67,6 +65,8 @@ where
 
     pub(crate) async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
+            log!("RRQ request failed (peer: {}, error: {})", &self.peer, &e);
+
             Packet::Error(e.into()).encode(&mut self.buffer);
             let buf = self.buffer.take().freeze();
             // Errors are never retransmitted.
@@ -78,12 +78,12 @@ where
     async fn try_handle(&mut self) -> Result<()> {
         // Reply with OACK if needed
         if let Some(opts) = &self.oack_opts {
-            trace!("Send OACK: {:?}", opts);
+            log!("RRQ OACK (peer: {}, opts: {:?}", &self.peer, &opts);
 
             Packet::OAck(opts.to_owned()).encode(&mut self.buffer);
             let buf = self.buffer.take().freeze();
 
-            self.send(buf, 0).await?;
+            self.send(buf).await?;
         }
 
         // Send file to client
@@ -110,33 +110,37 @@ where
             };
 
             // Send Data packet
-            let span = trace_span!("", block_id = %self.block_id);
-            self.send(buf, self.block_id).instrument(span).await?;
+            self.send(buf).await?;
 
             if is_last_block {
                 break;
             }
         }
 
-        trace!("Request served successfully");
+        log!("RRQ request served (peer: {})", &self.peer);
         Ok(())
     }
 
-    async fn send(&mut self, packet: Bytes, block_id: u16) -> Result<()> {
+    async fn send(&mut self, packet: Bytes) -> Result<()> {
         // Send packet until we receive an ack
         loop {
             self.socket.send_to(&packet[..], self.peer).await?;
 
             match self.recv_ack().await {
                 Ok(_) => {
-                    // TODO: Remove ugly logs and provide interface to the user
-                    log::debug!("RRQ (block_id: {}) - Received ACK", block_id);
-                    trace!("Received ACK");
+                    log!(
+                        "RRQ (peer: {}, block_id: {}) - Received ACK",
+                        &self.peer,
+                        self.block_id
+                    );
                     break;
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
-                    log::debug!("RRQ (block_id: {}) - Timeout", block_id);
-                    trace!("Timeout");
+                    log!(
+                        "RRQ (peer: {}, block_id: {}) - Timeout",
+                        &self.peer,
+                        self.block_id
+                    );
                     continue;
                 }
                 Err(e) => return Err(e.into()),

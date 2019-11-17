@@ -5,7 +5,6 @@ use std::fs;
 use std::net::SocketAddr;
 use std::path::Component;
 use std::path::{Path, PathBuf};
-use tracing::trace;
 
 use crate::error::*;
 use crate::packet;
@@ -25,7 +24,7 @@ impl DirRoHandler {
             return Err(Error::NotDir(dir));
         }
 
-        trace!("Directory: {}", dir.display());
+        log!("TFTP directory: {}", dir.display());
 
         Ok(DirRoHandler {
             dir,
@@ -66,7 +65,7 @@ impl crate::server::Handler for DirRoHandler {
         let file = File::open(&path).await?;
         let len = file.metadata().await.ok().map(|m| m.len());
 
-        trace!("Sending: {}", path.display());
+        log!("TFTP sending file: {}", path.display());
 
         Ok((file, len))
     }
