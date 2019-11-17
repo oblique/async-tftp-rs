@@ -62,9 +62,14 @@ impl crate::server::Handler for DirRoHandler {
         }
 
         let path = self.dir.join(path);
+
+        // Send only regular files
+        if !path.is_file() {
+            return Err(packet::Error::FileNotFound);
+        }
+
         let file = File::open(&path).await?;
         let len = file.metadata().await.ok().map(|m| m.len());
-
         log!("TFTP sending file: {}", path.display());
 
         Ok((file, len))
