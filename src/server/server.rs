@@ -1,4 +1,4 @@
-use async_std::net::{ToSocketAddrs, UdpSocket};
+use async_std::net::UdpSocket;
 use async_std::sync::Mutex;
 use async_std::task;
 use bytes::BytesMut;
@@ -8,25 +8,36 @@ use std::collections::HashSet;
 use std::iter;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::{info_span, trace};
-use tracing_futures::Instrument;
+use std::time::Duration;
 
-use crate::error::*;
-use crate::handle::*;
-use crate::packet::*;
-use crate::read_req::*;
+use super::read_req::*;
 #[cfg(feature = "unstable")]
-use crate::write_req::*;
+use super::write_req::*;
+use super::Handler;
+use crate::error::*;
+use crate::packet::{Packet, RwReq};
 
-pub struct AsyncTftpServer<H>
+/// TFTP server.
+pub struct TftpServer<H>
 where
-    H: Handle,
+    H: Handler,
 {
-    socket: Option<UdpSocket>,
-    handler: Arc<Mutex<H>>,
-    reqs_in_progress: HashSet<SocketAddr>,
-    buffer: BytesMut,
+    pub(crate) socket: Option<UdpSocket>,
+    pub(crate) handler: Arc<Mutex<H>>,
+    pub(crate) config: ServerConfig,
+    pub(crate) reqs_in_progress: HashSet<SocketAddr>,
+    pub(crate) buffer: BytesMut,
 }
+
+#[derive(Clone)]
+pub(crate) struct ServerConfig {
+    pub(crate) timeout: Duration,
+    pub(crate) block_size_limit: Option<u16>,
+    pub(crate) ignore_client_timeout: bool,
+    pub(crate) ignore_client_block_size: bool,
+}
+
+pub(crate) const DEFAULT_BLOCK_SIZE: usize = 512;
 
 type ReqResult = std::result::Result<(SocketAddr), (SocketAddr, Error)>;
 
@@ -38,37 +49,18 @@ enum FutResults {
     ReqFinished(ReqResult),
 }
 
-impl<H: 'static> AsyncTftpServer<H>
+impl<H: 'static> TftpServer<H>
 where
-    H: Handle,
+    H: Handler,
 {
-    pub async fn bind<A>(handler: H, addr: A) -> Result<Self>
-    where
-        A: ToSocketAddrs,
-    {
-        Ok(AsyncTftpServer {
-            socket: Some(UdpSocket::bind(addr).await?),
-            handler: Arc::new(Mutex::new(handler)),
-            reqs_in_progress: HashSet::new(),
-            buffer: BytesMut::new(),
-        })
-    }
-
-    pub fn with_socket(handler: H, socket: UdpSocket) -> Result<Self> {
-        Ok(AsyncTftpServer {
-            socket: Some(socket),
-            handler: Arc::new(Mutex::new(handler)),
-            reqs_in_progress: HashSet::new(),
-            buffer: BytesMut::new(),
-        })
-    }
-
-    pub fn local_addr(&self) -> Result<SocketAddr> {
+    /// Returns the listenning socket address.
+    pub fn listen_addr(&self) -> Result<SocketAddr> {
         let socket =
             self.socket.as_ref().expect("tftp not initialized correctly");
         Ok(socket.local_addr()?)
     }
 
+    /// Consume and start the server.
     pub async fn serve(mut self) -> Result<()> {
         let buf = vec![0u8; 4096];
         let socket =
@@ -99,11 +91,7 @@ where
                 }
                 // Request finished with an error
                 FutResults::ReqFinished(Err((peer, e))) => {
-                    trace!(
-                        "Failed to handle request for peer {}. Error: {}",
-                        peer,
-                        e
-                    );
+                    log!("Request failed (peer: {}, error: {}", &peer, &e);
 
                     // Send the error and ignore errors while sending it.
                     let _ = self.send_error(e, peer).await;
@@ -115,7 +103,6 @@ where
                 }
                 // Request is served
                 FutResults::ReqFinished(Ok(peer)) => {
-                    trace!("Request for peer {} is served", peer);
                     self.reqs_in_progress.remove(&peer);
 
                     // Serve only one request for tests
@@ -164,37 +151,35 @@ where
         peer: SocketAddr,
         req: RwReq,
     ) -> task::JoinHandle<ReqResult> {
+        log!("RRQ recieved (peer: {}, req: {:?})", &peer, &req);
+
         let handler = Arc::clone(&self.handler);
+        let config = self.config.clone();
 
-        task::spawn(
-            async move {
-                trace!("{:?}", req);
+        task::spawn(async move {
+            let (mut reader, size) = handler
+                .lock()
+                .await
+                .read_req_open(&peer, req.filename.as_ref())
+                .await
+                .map_err(|e| (peer, Error::Packet(e)))?;
 
-                let (mut reader, size) = handler
-                    .lock()
+            let mut read_req =
+                ReadRequest::init(&mut reader, size, peer, &req, config)
                     .await
-                    .read_req_open(&peer, req.filename.as_ref())
-                    .await
-                    .map_err(|e| (peer, Error::Tftp(e)))?;
+                    .map_err(|e| (peer, e))?;
 
-                let mut read_req =
-                    ReadRequest::init(&mut reader, size, peer, &req)
-                        .await
-                        .map_err(|e| (peer, e))?;
+            read_req.handle().await;
 
-                read_req.handle().await;
+            #[cfg(feature = "unstable")]
+            handler
+                .lock()
+                .await
+                .read_req_served(&peer, req.filename.as_ref(), reader)
+                .await;
 
-                #[cfg(feature = "unstable")]
-                handler
-                    .lock()
-                    .await
-                    .read_req_served(&peer, req.filename.as_ref(), reader)
-                    .await;
-
-                Ok(peer)
-            }
-                .instrument(info_span!("RRQ", %peer)),
-        )
+            Ok(peer)
+        })
     }
 
     #[cfg(feature = "unstable")]
@@ -203,11 +188,10 @@ where
         peer: SocketAddr,
         req: RwReq,
     ) -> task::JoinHandle<ReqResult> {
+        log!("WRQ recieved (peer: {}, req: {:?})", &peer, &req);
         let task_handler = Arc::clone(&self.handler);
 
         task::spawn(async move {
-            trace!("WRQ (peer: {}) - {:?}", peer, req);
-
             let writer = {
                 let mut handler = task_handler.lock().await;
 
@@ -218,7 +202,7 @@ where
                         req.opts.transfer_size,
                     )
                     .await
-                    .map_err(|e| (peer, Error::Tftp(e)))?
+                    .map_err(|e| (peer, Error::Packet(e)))?
             };
 
             let mut write_req = WriteRequest::init(writer, peer, req)

@@ -4,10 +4,10 @@ use std::net::SocketAddr;
 
 use async_std::net::UdpSocket;
 
-use crate::error::*;
-use crate::packet::*;
+use crate::error::{Error, Result};
+use crate::packet::{Packet, RwReq};
 
-pub struct WriteRequest<W>
+pub(crate) struct WriteRequest<W>
 where
     W: AsyncWrite + Send,
 {
@@ -23,7 +23,11 @@ impl<W> WriteRequest<W>
 where
     W: AsyncWrite + Send + Unpin,
 {
-    pub async fn init(writer: W, peer: SocketAddr, req: RwReq) -> Result<Self> {
+    pub(crate) async fn init(
+        writer: W,
+        peer: SocketAddr,
+        req: RwReq,
+    ) -> Result<Self> {
         Ok(WriteRequest {
             peer,
             _req: req,
@@ -34,7 +38,7 @@ where
         })
     }
 
-    pub async fn handle(&mut self) {
+    pub(crate) async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
             Packet::Error(e.into()).encode(&mut self.buffer);
             let buf = self.buffer.take().freeze();

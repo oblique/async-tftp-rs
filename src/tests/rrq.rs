@@ -3,17 +3,21 @@
 use async_std::task;
 
 use super::external_client::*;
-use super::handles::*;
-use crate::AsyncTftpServer;
+use super::handlers::*;
+use crate::server::TftpServerBuilder;
 
 fn transfer(file_size: usize) {
     task::block_on(async {
-        let handle = RandomHandle::new(file_size);
-        let md5 = handle.md5();
+        let handler = RandomHandler::new(file_size);
+        let md5 = handler.md5();
 
         // bind
-        let tftpd = AsyncTftpServer::bind(handle, "127.0.0.1:0").await.unwrap();
-        let addr = tftpd.local_addr().unwrap();
+        let tftpd = TftpServerBuilder::with_handler(handler)
+            .bind("127.0.0.1:0".parse().unwrap())
+            .build()
+            .await
+            .unwrap();
+        let addr = tftpd.listen_addr().unwrap();
 
         // start client
         let tftp_recv =

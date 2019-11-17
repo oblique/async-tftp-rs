@@ -1,21 +1,20 @@
-use async_trait::async_trait;
 use futures::io::Sink;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use super::random_file::RandomFile;
-use crate::Handle;
-use crate::TftpError;
+use crate::packet;
+use crate::server::Handler;
 
-pub struct RandomHandle {
+pub struct RandomHandler {
     md5: Arc<Mutex<Option<md5::Digest>>>,
     file_size: usize,
 }
 
-impl RandomHandle {
+impl RandomHandler {
     pub fn new(file_size: usize) -> Self {
-        RandomHandle {
+        RandomHandler {
             md5: Arc::new(Mutex::new(None)),
             file_size,
         }
@@ -26,16 +25,17 @@ impl RandomHandle {
     }
 }
 
-#[async_trait]
-impl Handle for RandomHandle {
+#[crate::async_trait]
+impl Handler for RandomHandler {
     type Reader = RandomFile;
+    #[cfg(feature = "unstable")]
     type Writer = Sink;
 
     async fn read_req_open(
         &mut self,
         _client: &SocketAddr,
         _path: &Path,
-    ) -> Result<(Self::Reader, Option<u64>), TftpError> {
+    ) -> Result<(Self::Reader, Option<u64>), packet::Error> {
         Ok((RandomFile::new(self.file_size), None))
     }
 
@@ -49,12 +49,13 @@ impl Handle for RandomHandle {
         *md5 = Some(reader.hash());
     }
 
+    #[cfg(feature = "unstable")]
     async fn write_open(
         &mut self,
         _client: &SocketAddr,
         _path: &Path,
         _size: Option<u64>,
-    ) -> Result<Self::Writer, TftpError> {
-        Err(TftpError::IllegalOperation)
+    ) -> Result<Self::Writer, packet::Error> {
+        Err(packet::Error::IllegalOperation)
     }
 }

@@ -2,7 +2,7 @@ use bytes::{Bytes, BytesMut};
 use matches::{assert_matches, matches};
 
 use crate::error::Error;
-use crate::packet::{Mode, Opts, Packet, RwReq, TftpError};
+use crate::packet::{self, Mode, Opts, Packet, RwReq};
 use crate::parse::parse_opts;
 
 fn packet_to_bytes(packet: &Packet) -> Bytes {
@@ -182,7 +182,7 @@ fn check_ack() {
 #[test]
 fn check_error() {
     let packet = Packet::decode(b"\x00\x05\x00\x01msg\0");
-    assert_matches!(packet, Ok(Packet::Error(TftpError::FileNotFound)));
+    assert_matches!(packet, Ok(Packet::Error(packet::Error::FileNotFound)));
     assert_eq!(
         packet_to_bytes(&packet.unwrap()),
         b"\x00\x05\x00\x01File not found\0"[..]
@@ -190,12 +190,12 @@ fn check_error() {
 
     // 0x10 is unknown error code an will be treated as 0
     let packet = Packet::decode(b"\x00\x05\x00\x10msg\0");
-    assert_matches!(packet, Ok(Packet::Error(TftpError::Msg(ref errmsg)))
+    assert_matches!(packet, Ok(Packet::Error(packet::Error::Msg(ref errmsg)))
                         if errmsg == "msg");
     assert_eq!(packet_to_bytes(&packet.unwrap()), b"\x00\x05\x00\x00msg\0"[..]);
 
     let packet = Packet::decode(b"\x00\x05\x00\x00msg\0");
-    assert_matches!(packet, Ok(Packet::Error(TftpError::Msg(ref errmsg)))
+    assert_matches!(packet, Ok(Packet::Error(packet::Error::Msg(ref errmsg)))
                         if errmsg == "msg");
     assert_eq!(packet_to_bytes(&packet.unwrap()), b"\x00\x05\x00\x00msg\0"[..]);
 

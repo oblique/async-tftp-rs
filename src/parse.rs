@@ -8,8 +8,8 @@ use nom::IResult;
 use num_traits::FromPrimitive;
 use std::str::{self, FromStr};
 
-use crate::error::*;
-use crate::packet::*;
+use crate::error::Result;
+use crate::packet::{self, *};
 
 #[derive(Debug)]
 enum Opt<'a> {
@@ -32,7 +32,7 @@ pub(crate) fn parse_packet(input: &[u8]) -> Result<Packet> {
     if rest.is_empty() {
         Ok(packet)
     } else {
-        Err(Error::InvalidPacket)
+        Err(crate::Error::InvalidPacket)
     }
 }
 
@@ -152,7 +152,7 @@ fn parse_ack(input: &[u8]) -> IResult<&[u8], Packet> {
 
 fn parse_error(input: &[u8]) -> IResult<&[u8], Packet> {
     tuple((be_u16, nul_str))(input).map(|(i, (code, msg))| {
-        (i, TftpError::from_code(code, Some(msg)).into())
+        (i, packet::Error::from_code(code, Some(msg)).into())
     })
 }
 

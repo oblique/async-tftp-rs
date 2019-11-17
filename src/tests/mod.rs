@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 mod external_client;
-mod handles;
+mod handlers;
 mod packet;
 mod random_file;
 mod rrq;
