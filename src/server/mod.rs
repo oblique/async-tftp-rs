@@ -1,3 +1,5 @@
+//! Server side implementation.
+
 mod builder;
 mod handler;
 mod read_req;

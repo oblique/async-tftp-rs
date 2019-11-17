@@ -11,6 +11,7 @@ use super::handlers::DirRoHandler;
 use super::{Handler, ServerConfig, TftpServer};
 use crate::error::Result;
 
+/// TFTP server builder.
 pub struct TftpServerBuilder<H: Handler> {
     handle: H,
     addr: SocketAddr,
@@ -22,7 +23,9 @@ pub struct TftpServerBuilder<H: Handler> {
 }
 
 impl TftpServerBuilder<DirRoHandler> {
-    /// Create new buidler that handles only read requests for a directory.
+    /// Create new buidler with [`DirRoHandler`].
+    ///
+    /// [`DirRoHandler`]: handlers/struct.DirRoHandler.html
     pub fn with_dir_ro<P>(dir: P) -> Result<TftpServerBuilder<DirRoHandler>>
     where
         P: AsRef<Path>,
@@ -33,7 +36,9 @@ impl TftpServerBuilder<DirRoHandler> {
 }
 
 impl<H: Handler> TftpServerBuilder<H> {
-    /// Create new builder.
+    /// Create new builder with custom [`Handler`].
+    ///
+    /// [`Handler`]: trait.Handler.html
     pub fn with_handler(handler: H) -> Self {
         TftpServerBuilder {
             handle: handler,
@@ -68,15 +73,16 @@ impl<H: Handler> TftpServerBuilder<H> {
 
     /// Set retry timeout.
     ///
-    /// You may need to combine this with `ignore_client_timeout`.
+    /// Client can override this (RFC2349). If you want to enforce it you must
+    /// combine it [`ignore_client_timeout`].
     ///
-    /// Based on In RFC2349 timeout should be between 1-255 seconds, but this
-    /// crate supports non-standard timeout, which can be anything, even milliseconds.
-    ///
-    /// If you choose to use non-standard timeout then make sure you test it well
-    /// in your environment since client's behavior is undefined.
+    /// This crate allows you to set non-standard timeouts (i.e. timeouts that are less
+    /// than a second). However if you choose to do it make sure you test it well in your
+    /// environment since client's behavior is undefined.
     ///
     /// **Default:** 3 seconds
+    ///
+    /// [`ignore_client_timeout`]: struct.TftpServerBuilder.html#method.ignore_client_timeout
     pub fn timeout(self, timeout: Duration) -> Self {
         TftpServerBuilder {
             timeout,
@@ -114,7 +120,7 @@ impl<H: Handler> TftpServerBuilder<H> {
     /// Ignore client's block size option.
     ///
     /// With this you can ignore client's `blksize` option of RFC2348.
-    /// This will have as a result a 512 block size that is defined in RFC1350.
+    /// This will enforce 512 block size that is defined in RFC1350.
     pub fn ignore_client_block_size(self) -> Self {
         TftpServerBuilder {
             ignore_client_block_size: true,
@@ -122,7 +128,9 @@ impl<H: Handler> TftpServerBuilder<H> {
         }
     }
 
-    /// Build `TftpServer`.
+    /// Build [`TftpServer`].
+    ///
+    /// [`TftpServer`]: struct.TftpServer.html
     pub async fn build(mut self) -> Result<TftpServer<H>> {
         let socket = match self.socket.take() {
             Some(socket) => socket,

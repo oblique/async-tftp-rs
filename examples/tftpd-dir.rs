@@ -10,7 +10,7 @@ async fn run() -> Result<()> {
         .build()
         .await?;
 
-    log::info!("Listening on: {}", tftpd.local_addr()?);
+    log::info!("Listening on: {}", tftpd.listen_addr()?);
     tftpd.serve().await?;
 
     Ok(())

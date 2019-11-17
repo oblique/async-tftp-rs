@@ -1,3 +1,4 @@
+///! Packet definitions.
 use bytes::BytesMut;
 use num_derive::FromPrimitive;
 use std::convert::From;
@@ -5,7 +6,7 @@ use std::io;
 use std::str;
 
 use crate::bytes_ext::BytesMutExt;
-use crate::error::*;
+use crate::error::Result;
 use crate::parse::*;
 
 pub(crate) const PACKET_DATA_HEADER_LEN: usize = 4;
@@ -21,6 +22,7 @@ pub(crate) enum PacketType {
     OAck = 6,
 }
 
+/// TFTP protocol error. Should not be confused with `async_tftp::Error`.
 #[derive(Debug, Clone)]
 pub enum Error {
     Msg(String),

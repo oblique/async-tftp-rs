@@ -6,14 +6,16 @@ use std::net::SocketAddr;
 use std::path::Component;
 use std::path::{Path, PathBuf};
 
-use crate::error::*;
+use crate::error::{Error, Result};
 use crate::packet;
 
+/// Handler that serves read requests for a directory.
 pub struct DirRoHandler {
     dir: PathBuf,
 }
 
 impl DirRoHandler {
+    /// Create new handler for directory.
     pub fn new<P>(dir: P) -> Result<Self>
     where
         P: AsRef<Path>,

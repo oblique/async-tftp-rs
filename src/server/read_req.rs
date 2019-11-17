@@ -6,8 +6,8 @@ use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use crate::error::*;
-use crate::packet::*;
+use crate::error::{Error, Result};
+use crate::packet::{Opts, Packet, RwReq, PACKET_DATA_HEADER_LEN};
 use crate::server::{ServerConfig, DEFAULT_BLOCK_SIZE};
 
 pub(crate) struct ReadRequest<'r, R>

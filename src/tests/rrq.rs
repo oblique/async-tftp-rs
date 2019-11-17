@@ -17,7 +17,7 @@ fn transfer(file_size: usize) {
             .build()
             .await
             .unwrap();
-        let addr = tftpd.local_addr().unwrap();
+        let addr = tftpd.listen_addr().unwrap();
 
         // start client
         let tftp_recv =

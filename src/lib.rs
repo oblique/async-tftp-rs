@@ -1,14 +1,62 @@
+//! This library provides TFTP async implementation.
+//!
+//! Currently it implements only server side which can serve read requests.
+//! This is the most used scenario in our modern days.
+//!
+//! The following RFCs are implemented:
+//!
+//! * [RFC 1350]
+//! * [RFC 2347]
+//! * [RFC 2348]
+//! * [RFC 2349]
+//!
+//! Features:
+//!
+//! * Async implementation.
+//! * Serve read requests.
+//! * You can set non-standard reply [`timeout`]. This is useful for faster
+//!   file transfer in unstable environments.
+//! * You can set [block size limit]. This is useful if you are accessing
+//!   client through a VPN.
+//! * You can implement your own [`Handler`] for more advance cases than
+//!   just serving a directory.
+//!
+//! ### Example
+//!
+//! ```ignore
+//! use async_tftp::server::TftpServerBuilder;
+//! use async_tftp::Result;
+//!
+//! fn main() -> Result<()> {
+//!    async_std::task::block_on(async {
+//!        let tftpd = TftpServerBuilder::with_dir_ro(".")?.build().await?;
+//!        tftpd.serve().await?;
+//!        Ok(())
+//!    })
+//! }
+//! ```
+//!
+//! [`timeout`]: server/struct.TftpServerBuilder.html#method.timeout
+//! [block size limit]: server/struct.TftpServerBuilder.html#method.block_size_limit
+//! [`Handler`]: server/trait.Handler.html
+//! [RFC 1350]: https://tools.ietf.org/html/rfc1350
+//! [RFC 2347]: https://tools.ietf.org/html/rfc2347
+//! [RFC 2348]: https://tools.ietf.org/html/rfc2348
+//! [RFC 2349]: https://tools.ietf.org/html/rfc2349
+
+#[macro_use]
+pub mod log;
+pub mod server;
+
+/// Packet definitions that are needed in public API.
+pub mod packet;
+
 mod bytes_ext;
 mod error;
 mod parse;
 mod tests;
 
-#[macro_use]
-pub mod log;
-pub mod packet;
-pub mod server;
-
 pub use crate::error::*;
 
-// re-export
+/// Re-export of `async_trait:async_trait`.
 pub use async_trait::async_trait;

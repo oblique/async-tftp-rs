@@ -15,8 +15,9 @@ use super::read_req::*;
 use super::write_req::*;
 use super::Handler;
 use crate::error::*;
-use crate::packet::*;
+use crate::packet::{Packet, RwReq};
 
+/// TFTP server.
 pub struct TftpServer<H>
 where
     H: Handler,
@@ -53,13 +54,13 @@ where
     H: Handler,
 {
     /// Returns the listenning socket address.
-    pub fn local_addr(&self) -> Result<SocketAddr> {
+    pub fn listen_addr(&self) -> Result<SocketAddr> {
         let socket =
             self.socket.as_ref().expect("tftp not initialized correctly");
         Ok(socket.local_addr()?)
     }
 
-    /// Consume and start the server
+    /// Consume and start the server.
     pub async fn serve(mut self) -> Result<()> {
         let buf = vec![0u8; 4096];
         let socket =

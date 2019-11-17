@@ -4,8 +4,8 @@ use std::net::SocketAddr;
 
 use async_std::net::UdpSocket;
 
-use crate::error::*;
-use crate::packet::*;
+use crate::error::{Error, Result};
+use crate::packet::{Packet, RwReq};
 
 pub(crate) struct WriteRequest<W>
 where
