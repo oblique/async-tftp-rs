@@ -9,6 +9,8 @@ jobs:
             matrix:
                 os: [ubuntu-latest, windows-latest]
         timeout-minutes: 20
+        env:
+            RUST_BACKTRACE: 1
         steps:
             - name: Install atftp (Linux)
               if: matrix.os == 'ubuntu-latest'
