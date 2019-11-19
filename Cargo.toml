@@ -12,7 +12,7 @@ keywords = ["tftp", "tftpd", "async", "async-std"]
 repository = "https://github.com/oblique/async-tftp-rs"
 
 [dependencies]
-thiserror = "1.0.5"
+thiserror = "1.0.6"
 bytes = "0.4.12"
 nom = "5.0.1"
 futures = { version = "0.3.1", features = ["async-await"] }
@@ -25,7 +25,7 @@ log = "0.4.8"
 lazy_static = "1.4.0"
 
 [dev-dependencies]
-anyhow = "1.0.20"
+anyhow = "1.0.22"
 rand = { version = "0.7.0", features = ["small_rng"] }
 md5 = "0.7.0"
 tempfile = "3.1.0"
