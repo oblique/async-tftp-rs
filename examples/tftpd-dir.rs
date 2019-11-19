@@ -19,7 +19,7 @@ async fn run() -> Result<()> {
 fn main() -> Result<()> {
     // Init logger
     TermLogger::init(
-        LevelFilter::Debug,
+        LevelFilter::Info,
         Config::default(),
         TerminalMode::Stdout,
     )?;
