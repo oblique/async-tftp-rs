@@ -20,6 +20,9 @@ pub enum Error {
 
     #[error("Path '{}' is not a directory", .0.display())]
     NotDir(std::path::PathBuf),
+
+    #[error("Max send retries reached (peer: {0},  block id: {1})")]
+    MaxSendRetriesReached(std::net::SocketAddr, u16),
 }
 
 impl<'a> From<nom::Err<(&'a [u8], nom::error::ErrorKind)>> for Error {

@@ -21,6 +21,7 @@ where
     block_id: u16,
     block_size: usize,
     timeout: Duration,
+    max_send_retries: u32,
     oack_opts: Option<Opts>,
 }
 
@@ -59,6 +60,7 @@ where
             block_id: 0,
             block_size,
             timeout,
+            max_send_retries: config.max_send_retries,
             oack_opts,
         })
     }
@@ -128,7 +130,7 @@ where
 
     async fn send(&mut self, packet: Bytes) -> Result<()> {
         // Send packet until we receive an ack
-        loop {
+        for _ in 0..=self.max_send_retries {
             self.socket.send_to(&packet[..], self.peer).await?;
 
             match self.recv_ack().await {
@@ -138,7 +140,7 @@ where
                         &self.peer,
                         self.block_id
                     );
-                    break;
+                    return Ok(());
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
                     log!(
@@ -152,7 +154,7 @@ where
             }
         }
 
-        Ok(())
+        Err(Error::MaxSendRetriesReached(self.peer, self.block_id))
     }
 
     async fn recv_ack(&mut self) -> io::Result<()> {

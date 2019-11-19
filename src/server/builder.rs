@@ -18,6 +18,7 @@ pub struct TftpServerBuilder<H: Handler> {
     socket: Option<UdpSocket>,
     timeout: Duration,
     block_size_limit: Option<u16>,
+    max_send_retries: u32,
     ignore_client_timeout: bool,
     ignore_client_block_size: bool,
 }
@@ -46,6 +47,7 @@ impl<H: Handler> TftpServerBuilder<H> {
             socket: None,
             timeout: Duration::from_secs(3),
             block_size_limit: None,
+            max_send_retries: 100,
             ignore_client_timeout: false,
             ignore_client_block_size: false,
         }
@@ -106,6 +108,20 @@ impl<H: Handler> TftpServerBuilder<H> {
         }
     }
 
+    /// Set maximum send retries for a data block.
+    ///
+    /// On timeout server will try to send the data block again. When retries are
+    /// reached for the specific data block the server closes the connection with
+    /// the client.
+    ///
+    /// Default: 100 retries.
+    pub fn max_send_retries(self, retries: u32) -> Self {
+        TftpServerBuilder {
+            max_send_retries: retries,
+            ..self
+        }
+    }
+
     /// Ignore client's `timeout` option.
     ///
     /// With this you enforce server's timeout by ignoring client's
@@ -140,6 +156,7 @@ impl<H: Handler> TftpServerBuilder<H> {
         let config = ServerConfig {
             timeout: self.timeout,
             block_size_limit: self.block_size_limit,
+            max_send_retries: self.max_send_retries,
             ignore_client_timeout: self.ignore_client_timeout,
             ignore_client_block_size: self.ignore_client_block_size,
         };
