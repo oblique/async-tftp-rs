@@ -76,16 +76,6 @@ where
     }
 
     async fn try_handle(&mut self) -> Result<()> {
-        // Reply with OACK if needed
-        if let Some(opts) = &self.oack_opts {
-            log!("RRQ OACK (peer: {}, opts: {:?}", &self.peer, &opts);
-
-            Packet::OAck(opts.to_owned()).encode(&mut self.buffer);
-            let buf = self.buffer.take().freeze();
-
-            self.send(buf).await?;
-        }
-
         // Send file to client
         loop {
             let is_last_block;
@@ -94,8 +84,8 @@ where
             self.buffer.reserve(PACKET_DATA_HEADER_LEN + self.block_size);
 
             // Encode head of Data packet
-            self.block_id = self.block_id.wrapping_add(1);
-            Packet::encode_data_head(self.block_id, &mut self.buffer);
+            let next_block_id = self.block_id.wrapping_add(1);
+            Packet::encode_data_head(next_block_id, &mut self.buffer);
 
             // Read block in self.buffer
             let buf = unsafe {
@@ -109,7 +99,22 @@ where
                 buf.freeze()
             };
 
+            // Send OACK after we manage to read the first block from reader.
+            //
+            // We do this because we want to give the developers the option to
+            // produce an error after they construct a reader.
+            if let Some(opts) = self.oack_opts.take() {
+                log!("RRQ OACK (peer: {}, opts: {:?}", &self.peer, &opts);
+
+                Packet::OAck(opts.to_owned()).encode(&mut self.buffer);
+                let buf = self.buffer.take().freeze();
+
+                assert_eq!(self.block_id, 0);
+                self.send(buf).await?;
+            }
+
             // Send Data packet
+            self.block_id = next_block_id;
             self.send(buf).await?;
 
             if is_last_block {
