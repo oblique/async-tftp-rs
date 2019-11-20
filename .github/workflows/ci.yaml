@@ -35,17 +35,17 @@ jobs:
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --release --tests --examples --all-features
+                  args: --tests --examples --all-features
             - name: Run tests
               uses: actions-rs/cargo@v1
               with:
                   command: test
-                  args: --release --all-features
+                  args: --all-features
             - name: Run long tests
               uses: actions-rs/cargo@v1
               with:
                   command: test
-                  args: --release --all-features 'tests::' -- --ignored
+                  args: --all-features 'tests::' -- --ignored
     lints:
         name: Lints
         runs-on: ubuntu-latest
