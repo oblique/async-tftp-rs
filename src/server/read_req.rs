@@ -108,10 +108,10 @@ where
             if let Some(opts) = self.oack_opts.take() {
                 log!("RRQ OACK (peer: {}, opts: {:?}", &self.peer, &opts);
 
-                Packet::OAck(opts.to_owned()).encode(&mut self.buffer);
-                let buf = self.buffer.take().freeze();
+                let mut buf = BytesMut::new();
+                Packet::OAck(opts.to_owned()).encode(&mut buf);
 
-                self.send(buf, 0).await?;
+                self.send(buf.take().freeze(), 0).await?;
             }
 
             // Send Data packet
