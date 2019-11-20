@@ -18,7 +18,6 @@ where
     socket: UdpSocket,
     reader: &'r mut R,
     buffer: BytesMut,
-    block_id: u16,
     block_size: usize,
     timeout: Duration,
     max_send_retries: u32,
@@ -57,7 +56,6 @@ where
             buffer: BytesMut::with_capacity(
                 PACKET_DATA_HEADER_LEN + block_size,
             ),
-            block_id: 0,
             block_size,
             timeout,
             max_send_retries: config.max_send_retries,
@@ -78,6 +76,8 @@ where
     }
 
     async fn try_handle(&mut self) -> Result<()> {
+        let mut block_id: u16 = 0;
+
         // Send file to client
         loop {
             let is_last_block;
@@ -86,8 +86,8 @@ where
             self.buffer.reserve(PACKET_DATA_HEADER_LEN + self.block_size);
 
             // Encode head of Data packet
-            let next_block_id = self.block_id.wrapping_add(1);
-            Packet::encode_data_head(next_block_id, &mut self.buffer);
+            block_id = block_id.wrapping_add(1);
+            Packet::encode_data_head(block_id, &mut self.buffer);
 
             // Read block in self.buffer
             let buf = unsafe {
@@ -111,13 +111,11 @@ where
                 Packet::OAck(opts.to_owned()).encode(&mut self.buffer);
                 let buf = self.buffer.take().freeze();
 
-                assert_eq!(self.block_id, 0);
-                self.send(buf).await?;
+                self.send(buf, 0).await?;
             }
 
             // Send Data packet
-            self.block_id = next_block_id;
-            self.send(buf).await?;
+            self.send(buf, block_id).await?;
 
             if is_last_block {
                 break;
@@ -128,17 +126,17 @@ where
         Ok(())
     }
 
-    async fn send(&mut self, packet: Bytes) -> Result<()> {
+    async fn send(&mut self, packet: Bytes, block_id: u16) -> Result<()> {
         // Send packet until we receive an ack
         for _ in 0..=self.max_send_retries {
             self.socket.send_to(&packet[..], self.peer).await?;
 
-            match self.recv_ack().await {
+            match self.recv_ack(block_id).await {
                 Ok(_) => {
                     log!(
                         "RRQ (peer: {}, block_id: {}) - Received ACK",
                         &self.peer,
-                        self.block_id
+                        block_id
                     );
                     return Ok(());
                 }
@@ -146,7 +144,7 @@ where
                     log!(
                         "RRQ (peer: {}, block_id: {}) - Timeout",
                         &self.peer,
-                        self.block_id
+                        block_id
                     );
                     continue;
                 }
@@ -154,15 +152,14 @@ where
             }
         }
 
-        Err(Error::MaxSendRetriesReached(self.peer, self.block_id))
+        Err(Error::MaxSendRetriesReached(self.peer, block_id))
     }
 
-    async fn recv_ack(&mut self) -> io::Result<()> {
+    async fn recv_ack(&mut self, block_id: u16) -> io::Result<()> {
         // We can not use `self` within `async_std::io::timeout` because not all
         // struct members implement `Sync`. So we borrow only what we need.
         let socket = &mut self.socket;
         let peer = self.peer;
-        let block_id = self.block_id;
 
         async_std::io::timeout(self.timeout, async {
             let mut buf = [0u8; 1024];
