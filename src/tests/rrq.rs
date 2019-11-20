@@ -7,7 +7,7 @@ use super::external_client::*;
 use super::handlers::*;
 use crate::server::TftpServerBuilder;
 
-fn transfer(file_size: usize) {
+fn transfer(file_size: usize, block_size: Option<u16>) {
     task::block_on(async {
         let (md5_tx, md5_rx) = oneshot::channel();
         let handler = RandomHandler::new(file_size, md5_tx);
@@ -21,8 +21,9 @@ fn transfer(file_size: usize) {
         let addr = tftpd.listen_addr().unwrap();
 
         // start client
-        let tftp_recv =
-            task::spawn_blocking(move || external_tftp_recv("test", addr));
+        let tftp_recv = task::spawn_blocking(move || {
+            external_tftp_recv("test", addr, block_size)
+        });
 
         // start server
         task::spawn(async move {
@@ -38,53 +39,60 @@ fn transfer(file_size: usize) {
 
 #[test]
 fn transfer_0_bytes() {
-    transfer(0);
+    transfer(0, None);
+    transfer(0, Some(1024));
 }
 
 #[test]
 fn transfer_less_than_block() {
-    transfer(1);
-    transfer(123);
-    transfer(511);
+    transfer(1, None);
+    transfer(123, None);
+    transfer(511, None);
+    transfer(1023, Some(1024));
 }
 
 #[test]
 fn transfer_block() {
-    transfer(512);
+    transfer(512, None);
+    transfer(1024, Some(1024));
 }
 
 #[test]
 fn transfer_more_than_block() {
-    transfer(512 + 1);
-    transfer(512 + 123);
-    transfer(512 + 511);
+    transfer(512 + 1, None);
+    transfer(512 + 123, None);
+    transfer(512 + 511, None);
+    transfer(1024 + 1, Some(1024));
+    transfer(1024 + 123, Some(1024));
+    transfer(1024 + 1023, Some(1024));
 }
 
 #[test]
 fn transfer_1mb() {
-    transfer(1024 * 1024);
+    transfer(1024 * 1024, None);
+    transfer(1024 * 1024, Some(1024));
 }
 
 #[test]
 #[ignore]
 fn transfer_almost_32mb() {
-    transfer(32 * 1024 * 1024 - 1);
+    transfer(32 * 1024 * 1024 - 1, None);
 }
 
 #[test]
 #[ignore]
 fn transfer_32mb() {
-    transfer(32 * 1024 * 1024);
+    transfer(32 * 1024 * 1024, None);
 }
 
 #[test]
 #[ignore]
 fn transfer_more_than_32mb() {
-    transfer(33 * 1024 * 1024 + 123);
+    transfer(33 * 1024 * 1024 + 123, None);
 }
 
 #[test]
 #[ignore]
 fn transfer_more_than_64mb() {
-    transfer(65 * 1024 * 1024 + 123);
+    transfer(65 * 1024 * 1024 + 123, None);
 }

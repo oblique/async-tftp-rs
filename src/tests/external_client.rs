@@ -13,13 +13,21 @@ use tempfile::tempdir;
 pub fn external_tftp_recv(
     filename: &str,
     server: SocketAddr,
+    block_size: Option<u16>,
 ) -> io::Result<md5::Digest> {
     let tmp = tempdir()?;
     let path = tmp.path().join("data");
 
     // Expects `atftp` to be installed
-    Command::new("atftp")
-        .arg("-g")
+    let mut cmd = Command::new("atftp");
+
+    if let Some(block_size) = block_size {
+        cmd.arg("--option").arg(format!("blksize {}", block_size));
+    }
+
+    cmd.arg("-g")
+        .arg("--option")
+        .arg("blksize 1024")
         .arg("-l")
         .arg(&path)
         .arg("-r")
@@ -36,13 +44,19 @@ pub fn external_tftp_recv(
 pub fn external_tftp_recv(
     filename: &str,
     server: SocketAddr,
+    block_size: Option<u16>,
 ) -> io::Result<md5::Digest> {
     let tmp = tempdir()?;
     let path = tmp.path().join("data");
 
     // Expects `https://www.winagents.com/downloads/tftp.exe` is in `PATH`
-    Command::new("tftp")
-        .arg("-i")
+    let mut cmd = Command::new("tftp");
+
+    if let Some(block_size) = block_size {
+        cmd.arg(format!("-b{}", block_size));
+    }
+
+    cmd.arg("-i")
         .arg(format!("-p{}", server.port()))
         .arg(server.ip().to_string())
         .arg("get")
