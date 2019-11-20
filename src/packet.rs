@@ -223,6 +223,9 @@ impl From<crate::Error> for Error {
             crate::Error::Packet(e) => e,
             crate::Error::Io(e) => e.into(),
             crate::Error::InvalidPacket => Error::IllegalOperation,
+            crate::Error::MaxSendRetriesReached(..) => {
+                Error::Msg("Max retries reached".to_string())
+            }
             _ => Error::UnknownError,
         }
     }
