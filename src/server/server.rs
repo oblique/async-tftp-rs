@@ -179,7 +179,7 @@ where
                 let mut handler = task_handler.lock().await;
 
                 handler
-                    .write_open(
+                    .write_req_open(
                         &peer,
                         req.filename.as_ref(),
                         req.opts.transfer_size,

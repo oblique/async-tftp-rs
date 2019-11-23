@@ -78,7 +78,7 @@ impl crate::server::Handler for DirRoHandler {
     }
 
     #[cfg(feature = "unstable")]
-    async fn write_open(
+    async fn write_req_open(
         &mut self,
         _client: &SocketAddr,
         _path: &Path,

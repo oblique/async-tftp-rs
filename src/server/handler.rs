@@ -21,7 +21,7 @@ pub trait Handler: Send {
     ) -> Result<(Self::Reader, Option<u64>), packet::Error>;
 
     #[cfg(feature = "unstable")]
-    async fn write_open(
+    async fn write_req_open(
         &mut self,
         client: &SocketAddr,
         path: &Path,
