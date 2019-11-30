@@ -1,8 +1,11 @@
+#![allow(clippy::transmute_ptr_to_ptr)]
+
 use async_std::net::UdpSocket;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::io::{AsyncRead, AsyncReadExt};
 use std::cmp;
 use std::io;
+use std::mem;
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -68,7 +71,7 @@ where
             log!("RRQ request failed (peer: {}, error: {})", &self.peer, &e);
 
             Packet::Error(e.into()).encode(&mut self.buffer);
-            let buf = self.buffer.take().freeze();
+            let buf = self.buffer.split().freeze();
             // Errors are never retransmitted.
             // We do not care if `send_to` resulted to an IO error.
             let _ = self.socket.send_to(&buf[..], self.peer).await;
@@ -91,14 +94,14 @@ where
 
             // Read block in self.buffer
             let buf = unsafe {
-                let mut buf =
-                    self.buffer.split_to(self.buffer.len() + self.block_size);
+                let data_buf: &mut [u8] =
+                    mem::transmute(self.buffer.bytes_mut());
 
-                let len = self.read_block(buf.bytes_mut()).await?;
+                let len = self.read_block(data_buf).await?;
                 is_last_block = len < self.block_size;
 
-                buf.advance_mut(len);
-                buf.freeze()
+                self.buffer.advance_mut(len);
+                self.buffer.split().freeze()
             };
 
             // Send OACK after we manage to read the first block from reader.
@@ -111,7 +114,7 @@ where
                 let mut buf = BytesMut::new();
                 Packet::OAck(opts.to_owned()).encode(&mut buf);
 
-                self.send(buf.take().freeze(), 0).await?;
+                self.send(buf.split().freeze(), 0).await?;
             }
 
             // Send Data packet

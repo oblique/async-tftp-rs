@@ -52,7 +52,6 @@ pub mod server;
 /// Packet definitions that are needed in public API.
 pub mod packet;
 
-mod bytes_ext;
 mod error;
 mod parse;
 mod tests;

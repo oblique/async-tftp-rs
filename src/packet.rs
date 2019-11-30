@@ -1,11 +1,10 @@
 ///! Packet definitions.
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 use num_derive::FromPrimitive;
 use std::convert::From;
 use std::io;
 use std::str;
 
-use crate::bytes_ext::BytesMutExt;
 use crate::error::Result;
 use crate::parse::*;
 
@@ -75,67 +74,67 @@ impl<'a> Packet<'a> {
     pub(crate) fn encode(&self, buf: &mut BytesMut) {
         match self {
             Packet::Rrq(req) => {
-                buf.extend_u16_be(PacketType::Rrq as u16);
-                buf.extend_buf(&req.filename);
-                buf.extend_u8(0);
-                buf.extend_buf(req.mode.to_str());
-                buf.extend_u8(0);
+                buf.put_u16(PacketType::Rrq as u16);
+                buf.put_slice(req.filename.as_bytes());
+                buf.put_u8(0);
+                buf.put_slice(req.mode.to_str().as_bytes());
+                buf.put_u8(0);
                 req.opts.encode(buf);
             }
             Packet::Wrq(req) => {
-                buf.extend_u16_be(PacketType::Wrq as u16);
-                buf.extend_buf(&req.filename);
-                buf.extend_u8(0);
-                buf.extend_buf(req.mode.to_str());
-                buf.extend_u8(0);
+                buf.put_u16(PacketType::Wrq as u16);
+                buf.put_slice(req.filename.as_bytes());
+                buf.put_u8(0);
+                buf.put_slice(req.mode.to_str().as_bytes());
+                buf.put_u8(0);
                 req.opts.encode(buf);
             }
             Packet::Data(block, data) => {
-                buf.extend_u16_be(PacketType::Data as u16);
-                buf.extend_u16_be(*block);
-                buf.extend_buf(&data[..]);
+                buf.put_u16(PacketType::Data as u16);
+                buf.put_u16(*block);
+                buf.put_slice(data);
             }
             Packet::Ack(block) => {
-                buf.extend_u16_be(PacketType::Ack as u16);
-                buf.extend_u16_be(*block);
+                buf.put_u16(PacketType::Ack as u16);
+                buf.put_u16(*block);
             }
             Packet::Error(error) => {
-                buf.extend_u16_be(PacketType::Error as u16);
-                buf.extend_u16_be(error.code());
-                buf.extend_buf(error.msg());
-                buf.extend_u8(0);
+                buf.put_u16(PacketType::Error as u16);
+                buf.put_u16(error.code());
+                buf.put_slice(error.msg().as_bytes());
+                buf.put_u8(0);
             }
             Packet::OAck(opts) => {
-                buf.extend_u16_be(PacketType::OAck as u16);
+                buf.put_u16(PacketType::OAck as u16);
                 opts.encode(buf);
             }
         }
     }
 
     pub(crate) fn encode_data_head(block_id: u16, buf: &mut BytesMut) {
-        buf.extend_u16_be(PacketType::Data as u16);
-        buf.extend_u16_be(block_id);
+        buf.put_u16(PacketType::Data as u16);
+        buf.put_u16(block_id);
     }
 }
 
 impl Opts {
     fn encode(&self, buf: &mut BytesMut) {
         if let Some(block_size) = self.block_size {
-            buf.extend_buf("blksize\0");
-            buf.extend_buf(block_size.to_string());
-            buf.extend_u8(0);
+            buf.put_slice(&b"blksize\0"[..]);
+            buf.put_slice(block_size.to_string().as_bytes());
+            buf.put_u8(0);
         }
 
         if let Some(timeout) = self.timeout {
-            buf.extend_buf("timeout\0");
-            buf.extend_buf(timeout.to_string());
-            buf.extend_u8(0);
+            buf.put_slice(&b"timeout\0"[..]);
+            buf.put_slice(timeout.to_string().as_bytes());
+            buf.put_u8(0);
         }
 
         if let Some(transfer_size) = self.transfer_size {
-            buf.extend_buf("tsize\0");
-            buf.extend_buf(transfer_size.to_string());
-            buf.extend_u8(0);
+            buf.put_slice(&b"tsize\0"[..]);
+            buf.put_slice(transfer_size.to_string().as_bytes());
+            buf.put_u8(0);
         }
     }
 }

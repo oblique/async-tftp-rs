@@ -204,7 +204,7 @@ where
         peer: SocketAddr,
     ) -> Result<()> {
         Packet::Error(error.into()).encode(&mut self.buffer);
-        let buf = self.buffer.take().freeze();
+        let buf = self.buffer.split().freeze();
 
         let socket = UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?;
         socket.send_to(&buf[..], peer).await?;

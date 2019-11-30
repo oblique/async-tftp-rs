@@ -1,4 +1,4 @@
-use bytes::{Bytes, BytesMut};
+use bytes::{Buf, Bytes, BytesMut};
 use futures::io::{AsyncWrite, AsyncWriteExt};
 use std::net::SocketAddr;
 
@@ -41,7 +41,7 @@ where
     pub(crate) async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
             Packet::Error(e.into()).encode(&mut self.buffer);
-            let buf = self.buffer.take().freeze();
+            let buf = self.buffer.split().freeze();
             // Errors are never retransmitted.
             // We do not care if `send_to` resulted to an IO error.
             let _ = self.socket.send_to(&buf[..], self.peer).await;
@@ -51,7 +51,7 @@ where
     async fn try_handle(&mut self) -> Result<()> {
         {
             Packet::Ack(self.block_id).encode(&mut self.buffer);
-            let buf = self.buffer.take().freeze();
+            let buf = self.buffer.split().freeze();
             self.socket.send_to(&buf[..], self.peer).await?;
         }
 
@@ -66,7 +66,7 @@ where
             // ack
             // TODO: resend on timeout
             Packet::Ack(self.block_id).encode(&mut self.buffer);
-            let buf = self.buffer.take().freeze();
+            let buf = self.buffer.split().freeze();
             self.socket.send_to(&buf[..], self.peer).await?;
 
             if data.len() < 512 {
