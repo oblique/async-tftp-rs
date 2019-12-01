@@ -1,6 +1,3 @@
-use async_std::fs::File;
-#[cfg(feature = "unstable")]
-use futures::io::Sink;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::Component;
@@ -8,6 +5,9 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::packet;
+use crate::runtime::File;
+#[cfg(feature = "unstable")]
+use crate::runtime::Sink;
 
 /// Handler that serves read requests for a directory.
 pub struct DirRoHandler {

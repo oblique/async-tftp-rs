@@ -1,5 +1,3 @@
-use async_std::net::UdpSocket;
-use async_std::sync::Mutex;
 use bytes::BytesMut;
 use std::collections::HashSet;
 use std::net::SocketAddr;
@@ -7,9 +5,16 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "use-async-std")]
+use async_std::net::UdpSocket;
+
+#[cfg(feature = "use-tokio")]
+use tokio::net::UdpSocket;
+
 use super::handlers::DirRoHandler;
 use super::{Handler, ServerConfig, TftpServer};
 use crate::error::Result;
+use crate::runtime::Mutex;
 
 /// TFTP server builder.
 pub struct TftpServerBuilder<H: Handler> {
@@ -162,7 +167,7 @@ impl<H: Handler> TftpServerBuilder<H> {
         };
 
         Ok(TftpServer {
-            socket: Some(socket),
+            socket: Some(socket.into()),
             handler: Arc::new(Mutex::new(self.handle)),
             config,
             reqs_in_progress: HashSet::new(),

@@ -1,11 +1,9 @@
 use bytes::{Buf, Bytes, BytesMut};
-use futures::io::{AsyncWrite, AsyncWriteExt};
 use std::net::SocketAddr;
-
-use async_std::net::UdpSocket;
 
 use crate::error::{Error, Result};
 use crate::packet::{Packet, RwReq};
+use crate::runtime::{AsyncWrite, AsyncWriteExt, UdpSocket};
 
 pub(crate) struct WriteRequest<W>
 where
@@ -28,10 +26,12 @@ where
         peer: SocketAddr,
         req: RwReq,
     ) -> Result<Self> {
+        let addr = "0.0.0.0:0".parse().unwrap();
+
         Ok(WriteRequest {
             peer,
             _req: req,
-            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
+            socket: UdpSocket::bind(addr).await.map_err(Error::Bind)?,
             block_id: 0,
             writer,
             buffer: BytesMut::new(),

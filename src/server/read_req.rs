@@ -1,8 +1,6 @@
 #![allow(clippy::transmute_ptr_to_ptr)]
 
-use async_std::net::UdpSocket;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::io::{AsyncRead, AsyncReadExt};
 use std::cmp;
 use std::io;
 use std::mem;
@@ -11,6 +9,7 @@ use std::time::Duration;
 
 use crate::error::{Error, Result};
 use crate::packet::{Opts, Packet, RwReq, PACKET_DATA_HEADER_LEN};
+use crate::runtime::{io_timeout, AsyncRead, AsyncReadExt, UdpSocket};
 use crate::server::{ServerConfig, DEFAULT_BLOCK_SIZE};
 
 pub(crate) struct ReadRequest<'r, R>
@@ -52,9 +51,11 @@ where
             .map(|t| Duration::from_secs(u64::from(t)))
             .unwrap_or(config.timeout);
 
+        let addr = "0.0.0.0:0".parse().unwrap();
+
         Ok(ReadRequest {
             peer,
-            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
+            socket: UdpSocket::bind(addr).await.map_err(Error::Bind)?,
             reader,
             buffer: BytesMut::with_capacity(
                 PACKET_DATA_HEADER_LEN + block_size,
@@ -164,7 +165,7 @@ where
         let socket = &mut self.socket;
         let peer = self.peer;
 
-        async_std::io::timeout(self.timeout, async {
+        io_timeout(self.timeout, async {
             let mut buf = [0u8; 1024];
 
             loop {

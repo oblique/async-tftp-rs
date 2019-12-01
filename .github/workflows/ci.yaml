@@ -35,17 +35,17 @@ jobs:
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --tests --examples --all-features
+                  args: --tests --examples --features=unstable,external-client-tests
             - name: Run tests
               uses: actions-rs/cargo@v1
               with:
                   command: test
-                  args: --all-features
+                  args: --features=unstable,external-client-tests
             - name: Run long tests
               uses: actions-rs/cargo@v1
               with:
                   command: test
-                  args: --all-features 'tests::' -- --ignored
+                  args: --features=unstable,external-client-tests 'tests::' -- --ignored
     lints:
         name: Lints
         runs-on: ubuntu-latest
@@ -67,4 +67,4 @@ jobs:
               uses: actions-rs/cargo@v1
               with:
                   command: clippy
-                  args: -- -D clippy::all
+                  args: --features=unstable -- -D clippy::all

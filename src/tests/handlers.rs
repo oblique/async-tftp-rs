@@ -1,10 +1,10 @@
 use futures::channel::oneshot;
-use futures::io::Sink;
 use std::net::SocketAddr;
 use std::path::Path;
 
 use super::random_file::RandomFile;
 use crate::packet;
+use crate::runtime::Sink;
 use crate::server::Handler;
 
 pub struct RandomHandler {

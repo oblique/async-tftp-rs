@@ -26,6 +26,7 @@ fn main() -> Result<()> {
 ## Features
 
 * Async implementation.
+* You can use [async-std] or [tokio]. Feature flags: `use-async-std` (default), `use-tokio`.
 * Serve read requests.
 * Unlimited transfer file size (block number roll-over).
 * You can set non-standard reply [`timeout`]. This is useful for faster
@@ -43,6 +44,8 @@ fn main() -> Result<()> {
 * [RFC 2349] - TFTP Timeout Interval and Transfer Size Options.
 
 
+[async-std]: https://crates.io/crates/async-std
+[tokio]: https://crates.io/crates/tokio
 [license]: LICENSE
 [license badge]: https://img.shields.io/github/license/oblique/async-tftp-rs
 [crate]: https://crates.io/crates/async-tftp

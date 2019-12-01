@@ -25,5 +25,17 @@ fn main() -> Result<()> {
     )?;
 
     async_tftp::log::set_log_level(log::Level::Info);
-    async_std::task::block_on(run())
+
+    #[cfg(feature = "use-async-std")]
+    {
+        async_std::task::block_on(run())?;
+    }
+
+    #[cfg(feature = "use-tokio")]
+    {
+        let mut rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(run())?;
+    }
+
+    Ok(())
 }
