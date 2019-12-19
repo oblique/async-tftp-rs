@@ -23,10 +23,21 @@ fn main() -> Result<()> {
 }
 ```
 
+Add in `Cargo.toml`:
+
+```
+async-tftp = "0.2"
+```
+
+The above will use [async-std] by default, if you prefer [tokio] use:
+
+```
+async-tftp = { version = "0.2", default-features = false, features = ["use-tokio"] }
+```
+
 ## Features
 
 * Async implementation.
-* You can use [async-std] or [tokio]. Feature flags: `use-async-std` (default), `use-tokio`.
 * Serve read requests.
 * Unlimited transfer file size (block number roll-over).
 * You can set non-standard reply [`timeout`]. This is useful for faster

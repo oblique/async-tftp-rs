@@ -37,9 +37,26 @@
 //! }
 //! ```
 //!
+//! Add in `Cargo.toml`:
+//!
+//! ```toml
+//! async-tftp = "0.2"
+//! ```
+//!
+//! The above will use [async-std] by default, if you prefer [tokio] use:
+//!
+//! ```toml
+//! async-tftp = { version = "0.2", default-features = false, features = ["use-tokio"] }
+//! ```
+//!
+//!
+//! [async-std]: https://docs.rs/async-std
+//! [tokio]: https://docs.rs/tokio
+//!
 //! [`timeout`]: server/struct.TftpServerBuilder.html#method.timeout
 //! [block size limit]: server/struct.TftpServerBuilder.html#method.block_size_limit
 //! [`Handler`]: server/trait.Handler.html
+//!
 //! [RFC 1350]: https://tools.ietf.org/html/rfc1350
 //! [RFC 2347]: https://tools.ietf.org/html/rfc2347
 //! [RFC 2348]: https://tools.ietf.org/html/rfc2348
