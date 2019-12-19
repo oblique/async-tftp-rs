@@ -31,16 +31,26 @@ jobs:
                   toolchain: stable
             - name: Checkout sources
               uses: actions/checkout@v1
-            - name: Build
+            - name: Build (async-std)
               uses: actions-rs/cargo@v1
               with:
                   command: build
-                  args: --tests --examples --features=unstable,external-client-tests
-            - name: Run tests
+                  args: --tests --examples --no-default-features --features=unstable,external-client-tests,use-async-std
+            - name: Run tests (async-std)
               uses: actions-rs/cargo@v1
               with:
                   command: test
                   args: --features=unstable,external-client-tests
+            - name: Build (tokio)
+              uses: actions-rs/cargo@v1
+              with:
+                  command: build
+                  args: --tests --examples --no-default-features --features=unstable,external-client-tests,use-tokio
+            - name: Run tests (tokio)
+              uses: actions-rs/cargo@v1
+              with:
+                  command: test
+                  args: --no-default-features --features=unstable,external-client-tests,use-tokio
             - name: Run long tests
               uses: actions-rs/cargo@v1
               with:
@@ -63,8 +73,13 @@ jobs:
               with:
                   command: fmt
                   args: --all -- --check
-            - name: Run cargo clippy
+            - name: Run cargo clippy (async-std)
               uses: actions-rs/cargo@v1
               with:
                   command: clippy
-                  args: --features=unstable -- -D clippy::all
+                  args: --no-default-features --features=unstable,use-async-std -- -D clippy::all
+            - name: Run cargo clippy (tokio)
+              uses: actions-rs/cargo@v1
+              with:
+                  command: clippy
+                  args: --no-default-features --features=unstable,use-tokio -- -D clippy::all
