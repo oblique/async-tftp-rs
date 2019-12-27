@@ -26,8 +26,6 @@ pub fn external_tftp_recv(
     }
 
     cmd.arg("-g")
-        .arg("--option")
-        .arg("blksize 1024")
         .arg("-l")
         .arg(&path)
         .arg("-r")
