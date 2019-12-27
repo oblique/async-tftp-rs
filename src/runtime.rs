@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -8,18 +10,16 @@ pub(crate) use async_std::{fs::File, net::SocketAddr, sync::Mutex};
 #[cfg(feature = "use-async-std")]
 use async_std::{io, net, task};
 #[cfg(feature = "use-async-std")]
-pub(crate) use futures::io::{AsyncRead, AsyncReadExt};
-#[cfg(all(feature = "use-async-std", feature = "unstable"))]
-pub(crate) use futures::io::{AsyncWrite, AsyncWriteExt, Sink};
+pub(crate) use futures::io::{
+    AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Sink,
+};
 
 #[cfg(feature = "use-tokio")]
 pub(crate) use std::net::SocketAddr;
-#[cfg(all(feature = "use-tokio", feature = "unstable"))]
-pub(crate) use tokio::io::{AsyncWrite, AsyncWriteExt, Sink};
 #[cfg(feature = "use-tokio")]
 pub(crate) use tokio::{
     fs::File,
-    io::{AsyncRead, AsyncReadExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, Sink},
     sync::Mutex,
 };
 #[cfg(feature = "use-tokio")]

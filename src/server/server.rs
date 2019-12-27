@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use super::read_req::*;
-#[cfg(feature = "unstable")]
 use super::write_req::*;
 use super::Handler;
 use crate::error::*;
@@ -38,7 +37,7 @@ pub(crate) struct ServerConfig {
 
 pub(crate) const DEFAULT_BLOCK_SIZE: usize = 512;
 
-type ReqResult = std::result::Result<(SocketAddr), (SocketAddr, Error)>;
+type ReqResult = std::result::Result<SocketAddr, (SocketAddr, Error)>;
 
 /// This contains all results of the futures that are passed in `select_all`.
 enum FutResults {
@@ -128,7 +127,6 @@ where
 
         match packet {
             Packet::Rrq(req) => Some(self.handle_rrq(peer, req)),
-            #[cfg(feature = "unstable")]
             Packet::Wrq(req) => Some(self.handle_wrq(peer, req)),
             _ => None,
         }
@@ -163,32 +161,32 @@ where
         })
     }
 
-    #[cfg(feature = "unstable")]
     fn handle_wrq(
         &mut self,
         peer: SocketAddr,
         req: RwReq,
     ) -> JoinHandle<ReqResult> {
         log!("WRQ recieved (peer: {}, req: {:?})", &peer, &req);
-        let task_handler = Arc::clone(&self.handler);
+
+        let handler = Arc::clone(&self.handler);
+        let config = self.config.clone();
 
         spawn(async move {
-            let writer = {
-                let mut handler = task_handler.lock().await;
-
-                handler
-                    .write_req_open(
-                        &peer,
-                        req.filename.as_ref(),
-                        req.opts.transfer_size,
-                    )
-                    .await
-                    .map_err(|e| (peer, Error::Packet(e)))?
-            };
-
-            let mut write_req = WriteRequest::init(writer, peer, req)
+            let mut writer = handler
+                .lock()
                 .await
-                .map_err(|e| (peer, e))?;
+                .write_req_open(
+                    &peer,
+                    req.filename.as_ref(),
+                    req.opts.transfer_size,
+                )
+                .await
+                .map_err(|e| (peer, Error::Packet(e)))?;
+
+            let mut write_req =
+                WriteRequest::init(&mut writer, peer, &req, config)
+                    .await
+                    .map_err(|e| (peer, e))?;
 
             write_req.handle().await;
 

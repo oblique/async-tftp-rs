@@ -11,7 +11,7 @@ use async_std::net::UdpSocket;
 #[cfg(feature = "use-tokio")]
 use tokio::net::UdpSocket;
 
-use super::handlers::DirRoHandler;
+use super::handlers::{DirHandler, DirHandlerFlags};
 use super::{Handler, ServerConfig, TftpServer};
 use crate::error::Result;
 use crate::runtime::Mutex;
@@ -28,15 +28,37 @@ pub struct TftpServerBuilder<H: Handler> {
     ignore_client_block_size: bool,
 }
 
-impl TftpServerBuilder<DirRoHandler> {
-    /// Create new buidler with [`DirRoHandler`].
+impl TftpServerBuilder<DirHandler> {
+    /// Create new buidler with [`DirHandler`] that serves only read requests.
     ///
-    /// [`DirRoHandler`]: handlers/struct.DirRoHandler.html
-    pub fn with_dir_ro<P>(dir: P) -> Result<TftpServerBuilder<DirRoHandler>>
+    /// [`DirHandler`]: handlers/struct.DirHandler.html
+    pub fn with_dir_ro<P>(dir: P) -> Result<TftpServerBuilder<DirHandler>>
     where
         P: AsRef<Path>,
     {
-        let handler = DirRoHandler::new(dir)?;
+        let handler = DirHandler::new(dir, DirHandlerFlags::ReadOnly)?;
+        Ok(TftpServerBuilder::with_handler(handler))
+    }
+
+    /// Create new buidler with [`DirHandler`] that serves only write requests.
+    ///
+    /// [`DirHandler`]: handlers/struct.DirHandler.html
+    pub fn with_dir_wo<P>(dir: P) -> Result<TftpServerBuilder<DirHandler>>
+    where
+        P: AsRef<Path>,
+    {
+        let handler = DirHandler::new(dir, DirHandlerFlags::WriteOnly)?;
+        Ok(TftpServerBuilder::with_handler(handler))
+    }
+
+    /// Create new buidler with [`DirHandler`] that serves read and write requests.
+    ///
+    /// [`DirHandler`]: handlers/struct.DirHandler.html
+    pub fn with_dir_rw<P>(dir: P) -> Result<TftpServerBuilder<DirHandler>>
+    where
+        P: AsRef<Path>,
+    {
+        let handler = DirHandler::new(dir, DirHandlerFlags::ReadWrite)?;
         Ok(TftpServerBuilder::with_handler(handler))
     }
 }

@@ -24,7 +24,6 @@ impl RandomHandler {
 #[crate::async_trait]
 impl Handler for RandomHandler {
     type Reader = RandomFile;
-    #[cfg(feature = "unstable")]
     type Writer = Sink;
 
     async fn read_req_open(
@@ -36,7 +35,6 @@ impl Handler for RandomHandler {
         Ok((RandomFile::new(self.file_size, md5_tx), None))
     }
 
-    #[cfg(feature = "unstable")]
     async fn write_req_open(
         &mut self,
         _client: &SocketAddr,

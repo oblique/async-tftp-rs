@@ -1,5 +1,5 @@
 //! Handlers for common use-cases.
 
-mod dir_ro;
+mod dir;
 
-pub use self::dir_ro::*;
+pub use self::dir::*;
