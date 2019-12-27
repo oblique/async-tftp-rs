@@ -11,7 +11,7 @@ use async_std::net::UdpSocket;
 #[cfg(feature = "use-tokio")]
 use tokio::net::UdpSocket;
 
-use super::handlers::{DirHandler, DirHandlerFlags};
+use super::handlers::{DirHandler, DirHandlerMode};
 use super::{Handler, ServerConfig, TftpServer};
 use crate::error::Result;
 use crate::runtime::Mutex;
@@ -36,7 +36,7 @@ impl TftpServerBuilder<DirHandler> {
     where
         P: AsRef<Path>,
     {
-        let handler = DirHandler::new(dir, DirHandlerFlags::ReadOnly)?;
+        let handler = DirHandler::new(dir, DirHandlerMode::ReadOnly)?;
         Ok(TftpServerBuilder::with_handler(handler))
     }
 
@@ -47,7 +47,7 @@ impl TftpServerBuilder<DirHandler> {
     where
         P: AsRef<Path>,
     {
-        let handler = DirHandler::new(dir, DirHandlerFlags::WriteOnly)?;
+        let handler = DirHandler::new(dir, DirHandlerMode::WriteOnly)?;
         Ok(TftpServerBuilder::with_handler(handler))
     }
 
@@ -58,7 +58,7 @@ impl TftpServerBuilder<DirHandler> {
     where
         P: AsRef<Path>,
     {
-        let handler = DirHandler::new(dir, DirHandlerFlags::ReadWrite)?;
+        let handler = DirHandler::new(dir, DirHandlerMode::ReadWrite)?;
         Ok(TftpServerBuilder::with_handler(handler))
     }
 }

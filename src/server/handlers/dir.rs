@@ -14,15 +14,18 @@ pub struct DirHandler {
     serve_wrq: bool,
 }
 
-pub enum DirHandlerFlags {
+pub enum DirHandlerMode {
+    /// Serve only read requests.
     ReadOnly,
+    /// Serve only write requests.
     WriteOnly,
+    /// Server read and write requests.
     ReadWrite,
 }
 
 impl DirHandler {
     /// Create new handler for directory.
-    pub fn new<P>(dir: P, flags: DirHandlerFlags) -> Result<Self>
+    pub fn new<P>(dir: P, flags: DirHandlerMode) -> Result<Self>
     where
         P: AsRef<Path>,
     {
@@ -35,15 +38,15 @@ impl DirHandler {
         log!("TFTP directory: {}", dir.display());
 
         let serve_rrq = match flags {
-            DirHandlerFlags::ReadOnly => true,
-            DirHandlerFlags::WriteOnly => false,
-            DirHandlerFlags::ReadWrite => true,
+            DirHandlerMode::ReadOnly => true,
+            DirHandlerMode::WriteOnly => false,
+            DirHandlerMode::ReadWrite => true,
         };
 
         let serve_wrq = match flags {
-            DirHandlerFlags::ReadOnly => false,
-            DirHandlerFlags::WriteOnly => true,
-            DirHandlerFlags::ReadWrite => true,
+            DirHandlerMode::ReadOnly => false,
+            DirHandlerMode::WriteOnly => true,
+            DirHandlerMode::ReadWrite => true,
         };
 
         Ok(DirHandler {
