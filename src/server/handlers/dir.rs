@@ -99,6 +99,10 @@ impl crate::server::Handler for DirHandler {
         let path = secure_path(&self.dir, path)?;
         let file = File::create(path).await?;
 
+        // tokio needs mut
+        #[cfg(feature = "use-tokio")]
+        let mut file = file;
+
         if let Some(size) = size {
             file.set_len(size).await?;
         }
