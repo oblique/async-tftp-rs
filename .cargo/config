@@ -1,0 +1,3 @@
+[alias]
+test-async-std = "test --no-default-features --features=external-client-tests,use-async-std"
+test-tokio = "test --no-default-features --features=external-client-tests,use-tokio"
