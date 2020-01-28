@@ -7,6 +7,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
 use tempfile::tempdir;
 
 #[cfg(target_os = "linux")]
@@ -20,6 +21,9 @@ pub fn external_tftp_recv(
 
     // Expects `atftp` to be installed
     let mut cmd = Command::new("atftp");
+
+    // Redirect output to /dev/null
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
 
     if let Some(block_size) = block_size {
         cmd.arg("--option").arg(format!("blksize {}", block_size));
@@ -49,6 +53,9 @@ pub fn external_tftp_recv(
 
     // Expects `https://www.winagents.com/downloads/tftp.exe` is in `PATH`
     let mut cmd = Command::new("tftp");
+
+    // Redirect output to null
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
 
     if let Some(block_size) = block_size {
         cmd.arg(format!("-b{}", block_size));
