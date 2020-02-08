@@ -1,7 +1,5 @@
-//! This library provides TFTP async implementation.
-//!
-//! Currently it implements only server side which can serve read
-//! requests, which is the most prominent scenario used.
+//! This library provides TFTP async implementation.  Currently it implements
+//! only server side.
 //!
 //! The following RFCs are implemented:
 //!
@@ -13,7 +11,7 @@
 //! Features:
 //!
 //! * Async implementation.
-//! * Serve read requests.
+//! * Serve read (RRQ) and write (WRQ) requests.
 //! * Unlimited transfer file size (block number roll-over).
 //! * You can set non-standard reply [`timeout`]. This is useful for faster
 //!   file transfer in unstable environments.
