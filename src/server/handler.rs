@@ -17,6 +17,7 @@ pub trait Handler: Send {
         path: &Path,
     ) -> Result<(Self::Reader, Option<u64>), packet::Error>;
 
+    /// Open `Writer` to serve a write request.
     async fn write_req_open(
         &mut self,
         client: &SocketAddr,
