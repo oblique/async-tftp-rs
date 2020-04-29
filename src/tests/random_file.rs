@@ -1,12 +1,11 @@
 use futures::channel::oneshot;
+use futures::AsyncRead;
 use rand::rngs::SmallRng;
 use rand::{RngCore, SeedableRng};
 use std::cmp;
 use std::io::{self, Read};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
-use crate::runtime::AsyncRead;
 
 pub struct RandomFile {
     size: usize,

@@ -1,23 +1,25 @@
 #![allow(clippy::transmute_ptr_to_ptr)]
 
 use bytes::{BufMut, Bytes, BytesMut};
+use futures::{AsyncRead, AsyncReadExt};
+use smol::Async;
 use std::cmp;
 use std::io;
 use std::mem;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
 
 use crate::error::{Error, Result};
 use crate::packet::{Opts, Packet, RwReq, PACKET_DATA_HEADER_LEN};
-use crate::runtime::{io_timeout, AsyncRead, AsyncReadExt, UdpSocket};
 use crate::server::{ServerConfig, DEFAULT_BLOCK_SIZE};
+use crate::utils::io_timeout;
 
 pub(crate) struct ReadRequest<'r, R>
 where
     R: AsyncRead + Send,
 {
     peer: SocketAddr,
-    socket: UdpSocket,
+    socket: Async<UdpSocket>,
     reader: &'r mut R,
     buffer: BytesMut,
     block_size: usize,
@@ -51,11 +53,10 @@ where
             .map(|t| Duration::from_secs(u64::from(t)))
             .unwrap_or(config.timeout);
 
-        let addr = "0.0.0.0:0".parse().unwrap();
-
         Ok(ReadRequest {
             peer,
-            socket: UdpSocket::bind(addr).await.map_err(Error::Bind)?,
+            socket: Async::<UdpSocket>::bind("0.0.0.0:0")
+                .map_err(Error::Bind)?,
             reader,
             buffer: BytesMut::with_capacity(
                 PACKET_DATA_HEADER_LEN + block_size,

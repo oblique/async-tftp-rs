@@ -31,31 +31,15 @@ jobs:
                   toolchain: stable
             - name: Checkout sources
               uses: actions/checkout@v1
-            - name: Build (async-std)
+            - name: Run tests
               uses: actions-rs/cargo@v1
               with:
-                  command: build
-                  args: --tests --examples --no-default-features --features=external-client-tests,use-async-std
-            - name: Run tests (async-std)
-              uses: actions-rs/cargo@v1
-              with:
-                  command: test
-                  args: --features=external-client-tests
-            - name: Build (tokio)
-              uses: actions-rs/cargo@v1
-              with:
-                  command: build
-                  args: --tests --examples --no-default-features --features=external-client-tests,use-tokio
-            - name: Run tests (tokio)
-              uses: actions-rs/cargo@v1
-              with:
-                  command: test
-                  args: --no-default-features --features=external-client-tests,use-tokio
+                  command: test-all
             - name: Run long tests
               uses: actions-rs/cargo@v1
               with:
-                  command: test
-                  args: --features=external-client-tests 'tests::' -- --ignored
+                  command: test-all
+                  args: 'tests:: -- --ignored'
     lints:
         name: Lints
         runs-on: ubuntu-latest
@@ -73,13 +57,8 @@ jobs:
               with:
                   command: fmt
                   args: --all -- --check
-            - name: Run cargo clippy (async-std)
+            - name: Run cargo clippy
               uses: actions-rs/cargo@v1
               with:
                   command: clippy
-                  args: --no-default-features --features=use-async-std -- -D clippy::all
-            - name: Run cargo clippy (tokio)
-              uses: actions-rs/cargo@v1
-              with:
-                  command: clippy
-                  args: --no-default-features --features=use-tokio -- -D clippy::all
+                  args: -- -D clippy::all

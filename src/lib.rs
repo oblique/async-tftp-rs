@@ -27,7 +27,7 @@
 //! use async_tftp::Result;
 //!
 //! fn main() -> Result<()> {
-//!    async_std::task::block_on(async {
+//!    smol::run(async {
 //!        let tftpd = TftpServerBuilder::with_dir_ro(".")?.build().await?;
 //!        tftpd.serve().await?;
 //!        Ok(())
@@ -69,8 +69,8 @@ pub mod packet;
 
 mod error;
 mod parse;
-mod runtime;
 mod tests;
+mod utils;
 
 pub use crate::error::*;
 

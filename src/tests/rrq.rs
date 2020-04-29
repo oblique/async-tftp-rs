@@ -1,14 +1,14 @@
 #![cfg(feature = "external-client-tests")]
 
 use futures::channel::oneshot;
+use smol::Task;
 
 use super::external_client::*;
 use super::handlers::*;
-use crate::runtime::{block_on, spawn, spawn_blocking};
 use crate::server::TftpServerBuilder;
 
 fn transfer(file_size: usize, block_size: Option<u16>) {
-    block_on(async {
+    smol::run(async {
         let (md5_tx, md5_rx) = oneshot::channel();
         let handler = RandomHandler::new(file_size, md5_tx);
 
@@ -21,14 +21,15 @@ fn transfer(file_size: usize, block_size: Option<u16>) {
         let addr = tftpd.listen_addr().unwrap();
 
         // start client
-        let tftp_recv = spawn_blocking(move || {
+        let tftp_recv = Task::blocking(async move {
             external_tftp_recv("test", addr, block_size)
         });
 
         // start server
-        spawn(async move {
+        Task::spawn(async move {
             tftpd.serve().await.unwrap();
-        });
+        })
+        .detach();
 
         // check md5
         let client_md5 = tftp_recv.await.expect("failed to run tftp client");

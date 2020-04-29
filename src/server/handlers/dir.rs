@@ -1,11 +1,12 @@
-use std::fs;
+use futures::{AsyncRead, AsyncWrite};
+use std::fs::{self, File};
+use std::io;
 use std::net::SocketAddr;
 use std::path::Component;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::packet;
-use crate::runtime::File;
 
 /// Handler that serves read requests for a directory.
 pub struct DirHandler {
@@ -59,8 +60,8 @@ impl DirHandler {
 
 #[crate::async_trait]
 impl crate::server::Handler for DirHandler {
-    type Reader = File;
-    type Writer = File;
+    type Reader = Box<dyn AsyncRead + Send + Unpin>;
+    type Writer = Box<dyn AsyncWrite + Send + Unpin>;
 
     async fn read_req_open(
         &mut self,
@@ -78,12 +79,13 @@ impl crate::server::Handler for DirHandler {
             return Err(packet::Error::FileNotFound);
         }
 
-        let file = File::open(&path).await?;
-        let len = file.metadata().await.ok().map(|m| m.len());
+        let path_clone = path.clone();
+        let (file, len) = smol::blocking!(open_file_ro(path_clone))?;
+        let reader = Box::new(smol::reader(file));
 
         log!("TFTP sending file: {}", path.display());
 
-        Ok((file, len))
+        Ok((reader, len))
     }
 
     async fn write_req_open(
@@ -97,17 +99,14 @@ impl crate::server::Handler for DirHandler {
         }
 
         let path = secure_path(&self.dir, path)?;
-        let file = File::create(path).await?;
 
-        // tokio needs mut
-        #[cfg(feature = "use-tokio")]
-        let mut file = file;
+        let path_clone = path.clone();
+        let file = smol::blocking!(open_file_wo(path_clone, size))?;
+        let writer = Box::new(smol::writer(file));
 
-        if let Some(size) = size {
-            file.set_len(size).await?;
-        }
+        log!("TFTP receiving file: {}", path.display());
 
-        Ok(file)
+        Ok(writer)
     }
 }
 
@@ -134,4 +133,20 @@ fn secure_path(
     }
 
     Ok(restricted_dir.join(path))
+}
+
+fn open_file_ro(path: PathBuf) -> io::Result<(File, Option<u64>)> {
+    let file = File::open(&path)?;
+    let len = file.metadata().ok().map(|m| m.len());
+    Ok((file, len))
+}
+
+fn open_file_wo(path: PathBuf, size: Option<u64>) -> io::Result<File> {
+    let file = File::create(path)?;
+
+    if let Some(size) = size {
+        file.set_len(size)?;
+    }
+
+    Ok(file)
 }
