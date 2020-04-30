@@ -1,4 +1,4 @@
-//! This library provides TFTP async implementation.  Currently it implements
+//! Async TFTP implementation, written with [smol]. Currently it implements
 //! only server side.
 //!
 //! The following RFCs are implemented:
@@ -20,7 +20,7 @@
 //! * You can implement your own [`Handler`] for more advance cases than
 //!   just serving a directory.
 //!
-//! ### Example
+//! # Example
 //!
 //! ```ignore
 //! use async_tftp::server::TftpServerBuilder;
@@ -38,22 +38,71 @@
 //! Add in `Cargo.toml`:
 //!
 //! ```toml
-//! async-tftp = "0.2"
+//! smol = "0.1"
+//! async-tftp = "0.3"
 //! ```
 //!
-//! The above will use [async-std] by default, if you prefer [tokio] use:
+//! # How to use it with other async runtimes
 //!
-//! ```toml
-//! async-tftp = { version = "0.2", default-features = false, features = ["use-tokio"] }
+//! The requirement is to have at least one instance of [`smol::run`] running.
+//!
+//! **[async-std] example:**
+//!
+//! ```ignore
+//! use async_tftp::server::TftpServerBuilder;
+//! use async_tftp::Result;
+//!
+//! use futures::future;
+//! use std::thread;
+//!
+//! #[async_std::main]
+//! async fn main() -> Result<()> {
+//!     // Start smol runtime
+//!     thread::spawn(|| smol::run(future::pending::<()>()));
+//!
+//!     // Start tftp server
+//!     let tftpd = TftpServerBuilder::with_dir_ro(".")?.build().await?;
+//!     tftpd.serve().await?;
+//!
+//!     Ok(())
+//! }
 //! ```
 //!
+//! **[tokio] example:**
 //!
+//! For tokio there is one more requirement: You need to enter in tokio's
+//! runtime context.
+//!
+//! ```ignore
+//! use async_tftp::server::TftpServerBuilder;
+//! use async_tftp::Result;
+//!
+//! use futures::future;
+//! use std::thread;
+//! use tokio::runtime;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     // Start smol runtime within tokio's runtime context
+//!     let handle = runtime::Handle::current();
+//!     thread::spawn(move || handle.enter(|| smol::run(future::pending::<()>())));
+//!
+//!     // Start tftp server
+//!     let tftpd = TftpServerBuilder::with_dir_ro(".")?.build().await?;
+//!     tftpd.serve().await?;
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! [smol]: https://docs.rs/smol
 //! [async-std]: https://docs.rs/async-std
 //! [tokio]: https://docs.rs/tokio
 //!
 //! [`timeout`]: server/struct.TftpServerBuilder.html#method.timeout
 //! [block size limit]: server/struct.TftpServerBuilder.html#method.block_size_limit
 //! [`Handler`]: server/trait.Handler.html
+//! [`smol::run`]: https://docs.rs/smol/latest/smol/fn.run.html
 //!
 //! [RFC 1350]: https://tools.ietf.org/html/rfc1350
 //! [RFC 2347]: https://tools.ietf.org/html/rfc2347
