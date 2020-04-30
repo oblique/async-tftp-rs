@@ -1,11 +1,10 @@
 //! Utilities for logs.
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use std::sync::RwLock;
 
-lazy_static! {
-    static ref LOG_LEVEL: RwLock<log::Level> = RwLock::new(log::Level::Trace);
-}
+static LOG_LEVEL: Lazy<RwLock<log::Level>> =
+    Lazy::new(|| RwLock::new(log::Level::Trace));
 
 macro_rules! log {
     ($($arg:tt)*) => {{
