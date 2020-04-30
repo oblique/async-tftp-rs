@@ -151,6 +151,7 @@ impl Mode {
 
 impl Error {
     pub(crate) fn from_code(code: u16, msg: Option<&str>) -> Self {
+        #[allow(clippy::wildcard_in_or_patterns)]
         match code {
             1 => Error::FileNotFound,
             2 => Error::PermissionDenied,
