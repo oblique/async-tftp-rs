@@ -1,6 +1,6 @@
 [package]
 name = "async-tftp"
-version = "0.2.0"
+version = "0.3.0-dev"
 authors = ["oblique <psyberbits@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -8,7 +8,10 @@ readme = "README.md"
 
 description = "Async TFTP implementation"
 categories = ["network-programming"]
-keywords = ["tftp", "tftpd", "async", "async-std"]
+keywords = [
+    "tftp", "tftpd", "async", "async-await", "futures",
+    "async-std", "tokio", "smol",
+]
 repository = "https://github.com/oblique/async-tftp-rs"
 
 [dependencies]
