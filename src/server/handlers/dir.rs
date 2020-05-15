@@ -1,4 +1,4 @@
-use futures::{AsyncRead, AsyncWrite};
+use blocking::Blocking;
 use std::fs::{self, File};
 use std::io;
 use std::net::SocketAddr;
@@ -60,8 +60,8 @@ impl DirHandler {
 
 #[crate::async_trait]
 impl crate::server::Handler for DirHandler {
-    type Reader = Box<dyn AsyncRead + Send + Unpin>;
-    type Writer = Box<dyn AsyncWrite + Send + Unpin>;
+    type Reader = Blocking<File>;
+    type Writer = Blocking<File>;
 
     async fn read_req_open(
         &mut self,
@@ -81,7 +81,7 @@ impl crate::server::Handler for DirHandler {
 
         let path_clone = path.clone();
         let (file, len) = smol::blocking!(open_file_ro(path_clone))?;
-        let reader = Box::new(smol::reader(file));
+        let reader = Blocking::new(file);
 
         log!("TFTP sending file: {}", path.display());
 
@@ -102,7 +102,7 @@ impl crate::server::Handler for DirHandler {
 
         let path_clone = path.clone();
         let file = smol::blocking!(open_file_wo(path_clone, size))?;
-        let writer = Box::new(smol::writer(file));
+        let writer = Blocking::new(file);
 
         log!("TFTP receiving file: {}", path.display());
 
