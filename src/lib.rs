@@ -18,7 +18,7 @@
 //! * You can set [block size limit]. This is useful if you are accessing
 //!   client through a VPN.
 //! * You can implement your own [`Handler`] for more advance cases than
-//!   just serving a directory.
+//!   just serving a directory. Check [`tftpd-targz.rs`] for an example.
 //!
 //! # Example
 //!
@@ -103,6 +103,7 @@
 //! [block size limit]: server/struct.TftpServerBuilder.html#method.block_size_limit
 //! [`Handler`]: server/trait.Handler.html
 //! [`smol::run`]: https://docs.rs/smol/latest/smol/fn.run.html
+//! [`tftpd-targz.rs`]: https://github.com/oblique/async-tftp-rs/blob/master/examples/tftpd-targz.rs
 //!
 //! [RFC 1350]: https://tools.ietf.org/html/rfc1350
 //! [RFC 2347]: https://tools.ietf.org/html/rfc2347
