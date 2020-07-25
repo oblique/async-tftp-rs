@@ -1,14 +1,13 @@
+use async_net::UdpSocket;
 use bytes::{Buf, Bytes, BytesMut};
-use futures::{AsyncWrite, AsyncWriteExt};
-use smol::Async;
+use futures_lite::{AsyncWrite, AsyncWriteExt};
 use std::cmp;
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use crate::error::{Error, Result};
 use crate::packet::{Opts, Packet, RwReq, PACKET_DATA_HEADER_LEN};
-//use crate::runtime::{io_timeout, AsyncWrite, AsyncWriteExt, UdpSocket};
 use crate::server::{ServerConfig, DEFAULT_BLOCK_SIZE};
 use crate::utils::io_timeout;
 
@@ -17,7 +16,7 @@ where
     W: AsyncWrite + Send,
 {
     peer: SocketAddr,
-    socket: Async<UdpSocket>,
+    socket: UdpSocket,
     writer: &'w mut W,
     // BytesMut reclaims memory only if it is continuous.
     // Because we always need to keep the previous ACK, we can not use
@@ -57,8 +56,7 @@ where
 
         Ok(WriteRequest {
             peer,
-            socket: Async::<UdpSocket>::bind("0.0.0.0:0")
-                .map_err(Error::Bind)?,
+            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
             writer,
             buffer: BytesMut::new(),
             ack: BytesMut::new(),

@@ -1,5 +1,5 @@
-use futures::channel::oneshot;
-use futures::io::Sink;
+use async_channel::Sender;
+use futures_lite::io::Sink;
 use std::net::SocketAddr;
 use std::path::Path;
 
@@ -8,12 +8,12 @@ use crate::packet;
 use crate::server::Handler;
 
 pub struct RandomHandler {
-    md5_tx: Option<oneshot::Sender<md5::Digest>>,
+    md5_tx: Option<Sender<md5::Digest>>,
     file_size: usize,
 }
 
 impl RandomHandler {
-    pub fn new(file_size: usize, md5_tx: oneshot::Sender<md5::Digest>) -> Self {
+    pub fn new(file_size: usize, md5_tx: Sender<md5::Digest>) -> Self {
         RandomHandler {
             md5_tx: Some(md5_tx),
             file_size,

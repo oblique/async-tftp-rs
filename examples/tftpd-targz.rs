@@ -2,12 +2,14 @@ use anyhow::Result;
 use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 use structopt::StructOpt;
 
+use async_executor::Executor;
 use async_tftp::packet;
 use async_tftp::server::{Handler, TftpServerBuilder};
 use flate2::read::GzDecoder;
-use futures::channel::oneshot;
-use futures::io;
+use futures_lite::future::block_on;
+use futures_lite::io::{AsyncWrite, AsyncWriteExt, Sink};
 use std::fs::File;
+use std::io::Read;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use tar::Archive;
@@ -32,6 +34,24 @@ fn strip_path_prefixes(path: &Path) -> &Path {
     path.strip_prefix("/").or_else(|_| path.strip_prefix("./")).unwrap_or(path)
 }
 
+fn io_copy(
+    mut src: impl Read,
+    mut dest: impl AsyncWrite + Unpin,
+) -> std::io::Result<()> {
+    let mut buf = [0u8; 1024];
+
+    loop {
+        match src.read(&mut buf[..]) {
+            Ok(0) => break,
+            Ok(len) => block_on(dest.write_all(&buf[..len]))?,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok(())
+}
+
 // This macro sends `Err` over a channel, it is used within `thread_pool`.
 macro_rules! try_or_send {
     ($e:expr, $tx:ident) => {{
@@ -48,7 +68,7 @@ macro_rules! try_or_send {
 #[async_tftp::async_trait]
 impl Handler for TftpdTarGzHandler {
     type Reader = piper::Reader;
-    type Writer = io::Sink;
+    type Writer = Sink;
 
     async fn read_req_open(
         &mut self,
@@ -58,8 +78,8 @@ impl Handler for TftpdTarGzHandler {
         let req_path = strip_path_prefixes(path).to_owned();
         let archive_path = self.archive_path.clone();
 
-        let (pipe_r, mut pipe_w) = piper::pipe(65536);
-        let (open_res_tx, open_res_rx) = oneshot::channel();
+        let (pipe_r, pipe_w) = piper::pipe(65536);
+        let (open_res_tx, open_res_rx) = async_channel::bounded(1);
 
         // We need to use our own thread pool to handle blocking IO
         // of `tar::Entry`.
@@ -86,26 +106,28 @@ impl Handler for TftpdTarGzHandler {
                     }
 
                     // Inform handler to continue on serving the data.
-                    if open_res_tx.send(Ok(())).is_err() {
+                    if open_res_tx.try_send(Ok(())).is_err() {
                         // Do not transfer data if handler task is canceled.
                         return;
                     }
 
                     // Forward data to handler.
-                    let entry = io::AllowStdIo::new(entry);
-                    let _ = smol::block_on(io::copy(entry, &mut pipe_w));
+                    let _ = io_copy(entry, pipe_w);
 
                     return;
                 }
-            }
 
-            // Requested path not found within the archive.
-            let _ = open_res_tx.send(Err(packet::Error::FileNotFound));
+                // Requested path not found within the archive.
+                let _ = open_res_tx.send(Err(packet::Error::FileNotFound));
+            }
         });
 
         // Wait for the above task to find the requested path and
         // starts transferring data.
-        open_res_rx.await.unwrap_or(Err(packet::Error::FileNotFound))?;
+        open_res_rx
+            .recv()
+            .await
+            .unwrap_or_else(|_| Err(packet::Error::FileNotFound))?;
 
         Ok((pipe_r, None))
     }
@@ -138,7 +160,7 @@ fn main() -> Result<()> {
 
     async_tftp::log::set_log_level(log::Level::Info);
 
-    smol::run(async move {
+    Executor::new().run(async move {
         // We will serve files from a tar.gz through tftp
         let handler = TftpdTarGzHandler::new(&opt.archive_path);
 

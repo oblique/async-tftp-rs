@@ -1,12 +1,12 @@
 #![allow(clippy::transmute_ptr_to_ptr)]
 
+use async_net::UdpSocket;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures::{AsyncRead, AsyncReadExt};
-use smol::Async;
+use futures_lite::{AsyncRead, AsyncReadExt};
 use std::cmp;
 use std::io;
 use std::mem;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use crate::error::{Error, Result};
@@ -19,7 +19,7 @@ where
     R: AsyncRead + Send,
 {
     peer: SocketAddr,
-    socket: Async<UdpSocket>,
+    socket: UdpSocket,
     reader: &'r mut R,
     buffer: BytesMut,
     block_size: usize,
@@ -55,8 +55,7 @@ where
 
         Ok(ReadRequest {
             peer,
-            socket: Async::<UdpSocket>::bind("0.0.0.0:0")
-                .map_err(Error::Bind)?,
+            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
             reader,
             buffer: BytesMut::with_capacity(
                 PACKET_DATA_HEADER_LEN + block_size,

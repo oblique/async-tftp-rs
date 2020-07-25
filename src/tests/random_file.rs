@@ -1,5 +1,5 @@
-use futures::channel::oneshot;
-use futures::AsyncRead;
+use async_channel::Sender;
+use futures_lite::AsyncRead;
 use rand::rngs::SmallRng;
 use rand::{RngCore, SeedableRng};
 use std::cmp;
@@ -12,11 +12,11 @@ pub struct RandomFile {
     read_size: usize,
     rng: SmallRng,
     md5_ctx: Option<md5::Context>,
-    md5_tx: Option<oneshot::Sender<md5::Digest>>,
+    md5_tx: Option<Sender<md5::Digest>>,
 }
 
 impl RandomFile {
-    pub fn new(size: usize, md5_tx: oneshot::Sender<md5::Digest>) -> Self {
+    pub fn new(size: usize, md5_tx: Sender<md5::Digest>) -> Self {
         RandomFile {
             size,
             read_size: 0,
@@ -34,7 +34,7 @@ impl Read for RandomFile {
                 (self.md5_ctx.take(), self.md5_tx.take())
             {
                 md5_tx
-                    .send(md5_ctx.compute())
+                    .try_send(md5_ctx.compute())
                     .expect("failed to send md5 digest");
             }
 

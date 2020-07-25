@@ -1,9 +1,10 @@
 use anyhow::Result;
+use async_executor::Executor;
 use async_tftp::server::TftpServerBuilder;
 use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 
 fn main() -> Result<()> {
-    smol::run(async {
+    Executor::new().run(async {
         // Init logger
         TermLogger::init(
             LevelFilter::Info,

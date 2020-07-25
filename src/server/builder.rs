@@ -1,8 +1,8 @@
+use async_lock::Lock;
+use async_net::UdpSocket;
 use bytes::BytesMut;
-use futures::lock::Mutex;
-use smol::Async;
 use std::collections::HashSet;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,7 +15,7 @@ use crate::error::{Error, Result};
 pub struct TftpServerBuilder<H: Handler> {
     handle: H,
     addr: SocketAddr,
-    socket: Option<Async<UdpSocket>>,
+    socket: Option<UdpSocket>,
     timeout: Duration,
     block_size_limit: Option<u16>,
     max_send_retries: u32,
@@ -88,7 +88,7 @@ impl<H: Handler> TftpServerBuilder<H> {
     }
 
     /// Set underling UDP socket.
-    pub fn socket(self, socket: Async<UdpSocket>) -> Self {
+    pub fn socket(self, socket: UdpSocket) -> Self {
         TftpServerBuilder {
             socket: Some(socket),
             ..self
@@ -172,7 +172,7 @@ impl<H: Handler> TftpServerBuilder<H> {
     pub async fn build(mut self) -> Result<TftpServer<H>> {
         let socket = match self.socket.take() {
             Some(socket) => socket,
-            None => Async::<UdpSocket>::bind(self.addr).map_err(Error::Bind)?,
+            None => UdpSocket::bind(self.addr).await.map_err(Error::Bind)?,
         };
 
         let config = ServerConfig {
@@ -185,7 +185,7 @@ impl<H: Handler> TftpServerBuilder<H> {
 
         Ok(TftpServer {
             socket: Some(socket),
-            handler: Arc::new(Mutex::new(self.handle)),
+            handler: Arc::new(Lock::new(self.handle)),
             config,
             reqs_in_progress: HashSet::new(),
             buffer: BytesMut::new(),

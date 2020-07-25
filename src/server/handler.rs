@@ -1,4 +1,4 @@
-use futures::{AsyncRead, AsyncWrite};
+use futures_lite::{AsyncRead, AsyncWrite};
 use std::net::SocketAddr;
 use std::path::Path;
 
