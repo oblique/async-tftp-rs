@@ -2,10 +2,9 @@ use async_executor::Task;
 use async_lock::Lock;
 use async_net::UdpSocket;
 use bytes::BytesMut;
-use futures_lite::FutureExt;
-use futures_util::future::select_all;
+use futures_lite::{FutureExt, StreamExt};
+use futures_util::stream::FuturesUnordered;
 use std::collections::HashSet;
-use std::iter;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -42,7 +41,7 @@ pub(crate) const DEFAULT_BLOCK_SIZE: usize = 512;
 
 type ReqResult = std::result::Result<SocketAddr, (SocketAddr, Error)>;
 
-/// This contains all results of the futures that are passed in `select_all`.
+/// This contains all results of the futures that are passed in `FuturesUnordered`.
 enum FutResults {
     /// Result of `recv_req` function.
     RecvReq(Result<(usize, SocketAddr)>, Vec<u8>, UdpSocket),
@@ -63,17 +62,16 @@ where
 
     /// Consume and start the server.
     pub async fn serve(mut self) -> Result<()> {
+        let mut futs = FuturesUnordered::new();
         let buf = vec![0u8; 4096];
         let socket =
             self.socket.take().expect("tftp not initialized correctly");
 
         // Await for the first request
         let recv_req_fut = recv_req(socket, buf).boxed();
-        let mut select_fut = select_all(iter::once(recv_req_fut));
+        futs.push(recv_req_fut);
 
-        loop {
-            let (res, _index, mut remaining_futs) = select_fut.await;
-
+        while let Some(res) = futs.next().await {
             match res {
                 FutResults::RecvReq(res, buf, socket) => {
                     let (len, peer) = res?;
@@ -83,12 +81,12 @@ where
                     {
                         // Put a future for finished request in the awaiting list
                         let fin_fut = req_finished(handle).boxed();
-                        remaining_futs.push(fin_fut);
+                        futs.push(fin_fut);
                     }
 
                     // Await for another request
                     let recv_req_fut = recv_req(socket, buf).boxed();
-                    remaining_futs.push(recv_req_fut);
+                    futs.push(recv_req_fut);
                 }
                 // Request finished with an error
                 FutResults::ReqFinished(Err((peer, e))) => {
@@ -103,9 +101,9 @@ where
                     self.reqs_in_progress.remove(&peer);
                 }
             }
-
-            select_fut = select_all(remaining_futs.into_iter());
         }
+
+        Ok(())
     }
 
     async fn handle_req_packet<'a>(
