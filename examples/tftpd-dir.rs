@@ -1,19 +1,16 @@
 use anyhow::Result;
 use async_executor::Executor;
 use async_tftp::server::TftpServerBuilder;
-use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 
 fn main() -> Result<()> {
+    fern::Dispatch::new()
+        .level(log::LevelFilter::Info)
+        .level_for("async_tftp", log::LevelFilter::Trace)
+        .chain(std::io::stdout())
+        .apply()
+        .expect("Failed to initialize logger");
+
     Executor::new().run(async {
-        // Init logger
-        TermLogger::init(
-            LevelFilter::Info,
-            Config::default(),
-            TerminalMode::Stdout,
-        )?;
-
-        async_tftp::log::set_log_level(log::Level::Info);
-
         let tftpd = TftpServerBuilder::with_dir_ro(".")?
             .bind("0.0.0.0:6969".parse().unwrap())
             // Workaround to handle cases where client is behind VPN

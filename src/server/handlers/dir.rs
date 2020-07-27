@@ -1,4 +1,5 @@
 use blocking::{unblock, Unblock};
+use log::trace;
 use std::fs::{self, File};
 use std::io;
 use std::net::SocketAddr;
@@ -36,7 +37,7 @@ impl DirHandler {
             return Err(Error::NotDir(dir));
         }
 
-        log!("TFTP directory: {}", dir.display());
+        trace!("TFTP directory: {}", dir.display());
 
         let serve_rrq = match flags {
             DirHandlerMode::ReadOnly => true,
@@ -83,7 +84,7 @@ impl crate::server::Handler for DirHandler {
         let (file, len) = unblock!(open_file_ro(path_clone))?;
         let reader = Unblock::new(file);
 
-        log!("TFTP sending file: {}", path.display());
+        trace!("TFTP sending file: {}", path.display());
 
         Ok((reader, len))
     }
@@ -104,7 +105,7 @@ impl crate::server::Handler for DirHandler {
         let file = unblock!(open_file_wo(path_clone, size))?;
         let writer = Unblock::new(file);
 
-        log!("TFTP receiving file: {}", path.display());
+        trace!("TFTP receiving file: {}", path.display());
 
         Ok(writer)
     }

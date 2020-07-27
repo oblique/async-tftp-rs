@@ -4,6 +4,7 @@ use async_net::UdpSocket;
 use bytes::BytesMut;
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::stream::FuturesUnordered;
+use log::trace;
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -90,7 +91,7 @@ where
                 }
                 // Request finished with an error
                 FutResults::ReqFinished(Err((peer, e))) => {
-                    log!("Request failed (peer: {}, error: {}", &peer, &e);
+                    trace!("Request failed (peer: {}, error: {}", &peer, &e);
 
                     // Send the error and ignore errors while sending it.
                     let _ = self.send_error(e, peer).await;
@@ -134,7 +135,7 @@ where
     }
 
     fn handle_rrq(&mut self, peer: SocketAddr, req: RwReq) -> Task<ReqResult> {
-        log!("RRQ recieved (peer: {}, req: {:?})", &peer, &req);
+        trace!("RRQ recieved (peer: {}, req: {:?})", &peer, &req);
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
@@ -159,7 +160,7 @@ where
     }
 
     fn handle_wrq(&mut self, peer: SocketAddr, req: RwReq) -> Task<ReqResult> {
-        log!("WRQ recieved (peer: {}, req: {:?})", &peer, &req);
+        trace!("WRQ recieved (peer: {}, req: {:?})", &peer, &req);
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();

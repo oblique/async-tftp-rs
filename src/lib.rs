@@ -135,8 +135,6 @@
 //! [RFC 2348]: https://tools.ietf.org/html/rfc2348
 //! [RFC 2349]: https://tools.ietf.org/html/rfc2349
 
-#[macro_use]
-pub mod log;
 pub mod server;
 
 /// Packet definitions that are needed in public API.

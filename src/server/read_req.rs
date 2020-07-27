@@ -3,6 +3,7 @@
 use async_net::UdpSocket;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::{AsyncRead, AsyncReadExt};
+use log::trace;
 use std::cmp;
 use std::io;
 use std::mem;
@@ -69,7 +70,7 @@ where
 
     pub(crate) async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
-            log!("RRQ request failed (peer: {}, error: {})", &self.peer, &e);
+            trace!("RRQ request failed (peer: {}, error: {})", &self.peer, &e);
 
             Packet::Error(e.into()).encode(&mut self.buffer);
             let buf = self.buffer.split().freeze();
@@ -110,7 +111,7 @@ where
             // We do this because we want to give the developers the option to
             // produce an error after they construct a reader.
             if let Some(opts) = self.oack_opts.take() {
-                log!("RRQ OACK (peer: {}, opts: {:?}", &self.peer, &opts);
+                trace!("RRQ OACK (peer: {}, opts: {:?}", &self.peer, &opts);
 
                 let mut buf = BytesMut::new();
                 Packet::OAck(opts.to_owned()).encode(&mut buf);
@@ -126,7 +127,7 @@ where
             }
         }
 
-        log!("RRQ request served (peer: {})", &self.peer);
+        trace!("RRQ request served (peer: {})", &self.peer);
         Ok(())
     }
 
@@ -137,7 +138,7 @@ where
 
             match self.recv_ack(block_id).await {
                 Ok(_) => {
-                    log!(
+                    trace!(
                         "RRQ (peer: {}, block_id: {}) - Received ACK",
                         &self.peer,
                         block_id
@@ -145,7 +146,7 @@ where
                     return Ok(());
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
-                    log!(
+                    trace!(
                         "RRQ (peer: {}, block_id: {}) - Timeout",
                         &self.peer,
                         block_id

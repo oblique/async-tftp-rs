@@ -1,6 +1,7 @@
 use async_net::UdpSocket;
 use bytes::{Buf, Bytes, BytesMut};
 use futures_lite::{AsyncWrite, AsyncWriteExt};
+use log::trace;
 use std::cmp;
 use std::io;
 use std::net::SocketAddr;
@@ -69,7 +70,7 @@ where
 
     pub(crate) async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
-            log!("WRQ request failed (peer: {}, error: {}", self.peer, &e);
+            trace!("WRQ request failed (peer: {}, error: {}", self.peer, &e);
 
             Packet::Error(e.into()).encode(&mut self.buffer);
             let buf = self.buffer.split().freeze();

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use simplelog::{Config, LevelFilter, TermLogger, TerminalMode};
 use structopt::StructOpt;
 
 use async_executor::Executor;
@@ -151,14 +150,12 @@ fn main() -> Result<()> {
     // Parse args
     let opt = Opt::from_args();
 
-    // Init logger
-    TermLogger::init(
-        LevelFilter::Info,
-        Config::default(),
-        TerminalMode::Stdout,
-    )?;
-
-    async_tftp::log::set_log_level(log::Level::Info);
+    fern::Dispatch::new()
+        .level(log::LevelFilter::Info)
+        .level_for("async_tftp", log::LevelFilter::Trace)
+        .chain(std::io::stdout())
+        .apply()
+        .expect("Failed to initialize logger");
 
     Executor::new().run(async move {
         // We will serve files from a tar.gz through tftp
