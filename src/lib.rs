@@ -65,6 +65,7 @@
 //! use async_tftp::server::TftpServerBuilder;
 //! use async_tftp::Result;
 //!
+//! use async_executor::Executor;
 //! use futures_lite::future;
 //! use std::thread;
 //!
@@ -72,7 +73,7 @@
 //! async fn main() -> Result<()> {
 //!     // Set explicit async-executor spawner
 //!     let ex = Executor::new();
-//!     async_tftp::set_spawner(ex.spawner());
+//!     async_tftp::set_spawner(ex.spawner()).unwrap();
 //!
 //!     // Start new thread that can handle both, async-executor tasks
 //!     // and async-std tasks.
@@ -95,6 +96,7 @@
 //! use async_tftp::server::TftpServerBuilder;
 //! use async_tftp::Result;
 //!
+//! use async_executor::Executor;
 //! use futures_lite::future;
 //! use std::thread;
 //! use tokio::runtime;
@@ -103,7 +105,7 @@
 //! async fn main() -> Result<()> {
 //!     // Set explicit async-executor spawner
 //!     let ex = Executor::new();
-//!     async_tftp::set_spawner(ex.spawner());
+//!     async_tftp::set_spawner(ex.spawner()).unwrap();
 //!
 //!     // Start new thread that can handle both, async-executor tasks
 //!     // and tokio tasks.
