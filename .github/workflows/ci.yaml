@@ -7,7 +7,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
-                os: [ubuntu-latest, windows-latest]
+                os: [ubuntu-latest, windows-latest, macos-latest]
         timeout-minutes: 20
         env:
             RUST_BACKTRACE: 1
@@ -35,7 +35,8 @@ jobs:
             - name: Run tests
               uses: actions-rs/cargo@v1
               with:
-                  command: test --all-features
+                  command: test
+                  args: --all-features
             - name: Run long tests
               uses: actions-rs/cargo@v1
               with:
