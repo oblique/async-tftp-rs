@@ -140,7 +140,7 @@ async fn main() -> Result<()> {
 [docs]: https://docs.rs/async-tftp
 [docs badge]: https://docs.rs/async-tftp/badge.svg
 
-[`async_tftp::set_spawner`]: https://docs.rs/async-tftp/latest/async_tftp/fn.set_spanwer.html
+[`async_tftp::set_spawner`]: https://docs.rs/async-tftp/latest/async_tftp/fn.set_spawner.html
 [`timeout`]: https://docs.rs/async-tftp/latest/async_tftp/server/struct.TftpServerBuilder.html#method.timeout
 [block size limit]: https://docs.rs/async-tftp/latest/async_tftp/server/struct.TftpServerBuilder.html#method.block_size_limit
 [`Handler`]: https://docs.rs/async-tftp/latest/async_tftp/server/trait.Handler.html

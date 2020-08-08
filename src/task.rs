@@ -6,7 +6,7 @@ use crate::error::*;
 
 static SPAWNER: OnceCell<Spawner> = OnceCell::new();
 
-pub fn set_spanwer(spawner: Spawner) -> Result<()> {
+pub fn set_spawner(spawner: Spawner) -> Result<()> {
     SPAWNER.set(spawner).map_err(|_| Error::SpawnerAlreadySet)
 }
 

@@ -123,7 +123,7 @@
 //! [async-std]: https://docs.rs/async-std
 //! [tokio]: https://docs.rs/tokio
 //!
-//! [`async_tftp::set_spawner`]: fn.set_spanwer.html
+//! [`async_tftp::set_spawner`]: fn.set_spawner.html
 //! [`timeout`]: server/struct.TftpServerBuilder.html#method.timeout
 //! [block size limit]: server/struct.TftpServerBuilder.html#method.block_size_limit
 //! [`Handler`]: server/trait.Handler.html
