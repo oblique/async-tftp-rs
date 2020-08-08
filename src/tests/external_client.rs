@@ -1,4 +1,5 @@
 #![cfg(feature = "external-client-tests")]
+#![cfg(any(target_os = "linux", target_os = "windows"))]
 #![allow(unused_imports)]
 
 use std::env;
@@ -36,7 +37,8 @@ pub fn external_tftp_recv(
         .arg(filename)
         .arg(server.ip().to_string())
         .arg(server.port().to_string())
-        .status()?;
+        .status()
+        .expect("atftp is not installed");
 
     let data = fs::read(path)?;
     Ok(md5::compute(data))
@@ -67,7 +69,8 @@ pub fn external_tftp_recv(
         .arg("get")
         .arg(filename)
         .arg(&path)
-        .status()?;
+        .status()
+        .expect("tftp is not installed");
 
     let data = fs::read(path)?;
     Ok(md5::compute(data))

@@ -1,4 +1,5 @@
 #![cfg(feature = "external-client-tests")]
+#![cfg(any(target_os = "linux", target_os = "windows"))]
 
 use async_executor::{Executor, Task};
 use blocking::Unblock;

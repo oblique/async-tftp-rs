@@ -1,2 +1,0 @@
-[alias]
-test-all = "test --features=external-client-tests"
