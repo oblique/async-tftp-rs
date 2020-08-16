@@ -23,9 +23,6 @@ pub enum Error {
 
     #[error("Max send retries reached (peer: {0},  block id: {1})")]
     MaxSendRetriesReached(std::net::SocketAddr, u16),
-
-    #[error("Task spawner already set")]
-    SpawnerAlreadySet,
 }
 
 impl<'a> From<nom::Err<(&'a [u8], nom::error::ErrorKind)>> for Error {
