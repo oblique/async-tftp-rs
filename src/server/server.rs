@@ -1,11 +1,12 @@
-use async_executor::Task;
 use async_lock::Lock;
 use async_net::UdpSocket;
 use bytes::BytesMut;
+use futures_lite::future::Boxed;
 use futures_lite::{FutureExt, StreamExt};
 use futures_util::stream::FuturesUnordered;
 use log::trace;
 use std::collections::HashSet;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,7 +16,6 @@ use super::write_req::*;
 use super::Handler;
 use crate::error::*;
 use crate::packet::{Packet, RwReq};
-use crate::task;
 
 /// TFTP server.
 pub struct TftpServer<H>
@@ -77,12 +77,11 @@ where
                 FutResults::RecvReq(res, buf, socket) => {
                     let (len, peer) = res?;
 
-                    if let Some(handle) =
+                    if let Some(req_fin_fut) =
                         self.handle_req_packet(peer, &buf[..len]).await
                     {
                         // Put a future for finished request in the awaiting list
-                        let fin_fut = req_finished(handle).boxed();
-                        futs.push(fin_fut);
+                        futs.push(req_fin_fut);
                     }
 
                     // Await for another request
@@ -111,7 +110,7 @@ where
         &'a mut self,
         peer: SocketAddr,
         data: &'a [u8],
-    ) -> Option<Task<ReqResult>> {
+    ) -> Option<Boxed<FutResults>> {
         let packet = match Packet::decode(data) {
             Ok(packet) => match packet {
                 Packet::Rrq(_) | Packet::Wrq(_) => packet,
@@ -134,13 +133,17 @@ where
         }
     }
 
-    fn handle_rrq(&mut self, peer: SocketAddr, req: RwReq) -> Task<ReqResult> {
+    fn handle_rrq(
+        &mut self,
+        peer: SocketAddr,
+        req: RwReq,
+    ) -> Boxed<FutResults> {
         trace!("RRQ recieved (peer: {}, req: {:?})", &peer, &req);
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
 
-        task::spawn(async move {
+        req_fut(async move {
             let (mut reader, size) = handler
                 .lock()
                 .await
@@ -159,13 +162,17 @@ where
         })
     }
 
-    fn handle_wrq(&mut self, peer: SocketAddr, req: RwReq) -> Task<ReqResult> {
+    fn handle_wrq(
+        &mut self,
+        peer: SocketAddr,
+        req: RwReq,
+    ) -> Boxed<FutResults> {
         trace!("WRQ recieved (peer: {}, req: {:?})", &peer, &req);
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
 
-        task::spawn(async move {
+        req_fut(async move {
             let mut writer = handler
                 .lock()
                 .await
@@ -208,7 +215,12 @@ async fn recv_req(socket: UdpSocket, mut buf: Vec<u8>) -> FutResults {
     FutResults::RecvReq(res, buf, socket)
 }
 
-async fn req_finished(handle: Task<ReqResult>) -> FutResults {
-    let res = handle.await;
-    FutResults::ReqFinished(res)
+fn req_fut(
+    fut: impl Future<Output = ReqResult> + Send + 'static,
+) -> Boxed<FutResults> {
+    async move {
+        let res = fut.await;
+        FutResults::ReqFinished(res)
+    }
+    .boxed()
 }

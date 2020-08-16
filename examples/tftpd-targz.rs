@@ -1,7 +1,6 @@
 use anyhow::Result;
 use structopt::StructOpt;
 
-use async_executor::Executor;
 use async_tftp::packet;
 use async_tftp::server::{Handler, TftpServerBuilder};
 use flate2::read::GzDecoder;
@@ -157,7 +156,7 @@ fn main() -> Result<()> {
         .apply()
         .expect("Failed to initialize logger");
 
-    Executor::new().run(async move {
+    block_on(async move {
         // We will serve files from a tar.gz through tftp
         let handler = TftpdTarGzHandler::new(&opt.archive_path);
 
