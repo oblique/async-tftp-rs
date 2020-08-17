@@ -4,8 +4,8 @@
 [![crates.io][crate badge]][crate]
 [![docs][docs badge]][docs]
 
-Async TFTP implementation, written with [smol] building blocks. Currently
-it implements only server side.
+Executor agnostic async TFTP implementation, written with [smol]
+building blocks. Currently it implements only server side.
 
 The following RFCs are implemented:
 

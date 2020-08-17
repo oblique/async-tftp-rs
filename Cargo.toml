@@ -6,7 +6,7 @@ edition = "2018"
 license = "MIT"
 readme = "README.md"
 
-description = "Async TFTP implementation"
+description = "Executor agnostic async TFTP implementation"
 categories = ["network-programming"]
 keywords = [
     "tftp", "tftpd", "async", "async-await", "futures",
