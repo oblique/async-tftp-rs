@@ -1,13 +1,13 @@
 #![allow(clippy::transmute_ptr_to_ptr)]
 
-use async_net::UdpSocket;
+use async_io::Async;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::{AsyncRead, AsyncReadExt};
 use log::trace;
 use std::cmp;
 use std::io;
 use std::mem;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
 
 use crate::error::{Error, Result};
@@ -20,7 +20,7 @@ where
     R: AsyncRead + Send,
 {
     peer: SocketAddr,
-    socket: UdpSocket,
+    socket: Async<UdpSocket>,
     reader: &'r mut R,
     buffer: BytesMut,
     block_size: usize,
@@ -54,9 +54,12 @@ where
             .map(|t| Duration::from_secs(u64::from(t)))
             .unwrap_or(config.timeout);
 
+        let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+        let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
+
         Ok(ReadRequest {
             peer,
-            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
+            socket,
             reader,
             buffer: BytesMut::with_capacity(
                 PACKET_DATA_HEADER_LEN + block_size,

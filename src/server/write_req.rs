@@ -1,10 +1,10 @@
-use async_net::UdpSocket;
+use async_io::Async;
 use bytes::{Buf, Bytes, BytesMut};
 use futures_lite::{AsyncWrite, AsyncWriteExt};
 use log::trace;
 use std::cmp;
 use std::io;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
 
 use crate::error::{Error, Result};
@@ -17,7 +17,7 @@ where
     W: AsyncWrite + Send,
 {
     peer: SocketAddr,
-    socket: UdpSocket,
+    socket: Async<UdpSocket>,
     writer: &'w mut W,
     // BytesMut reclaims memory only if it is continuous.
     // Because we always need to keep the previous ACK, we can not use
@@ -55,9 +55,12 @@ where
             .map(|t| Duration::from_secs(u64::from(t)))
             .unwrap_or(config.timeout);
 
+        let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+        let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
+
         Ok(WriteRequest {
             peer,
-            socket: UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?,
+            socket,
             writer,
             buffer: BytesMut::new(),
             ack: BytesMut::new(),

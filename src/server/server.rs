@@ -1,5 +1,5 @@
+use async_io::Async;
 use async_lock::Lock;
-use async_net::UdpSocket;
 use bytes::BytesMut;
 use futures_lite::future::Boxed;
 use futures_lite::{FutureExt, StreamExt};
@@ -7,7 +7,7 @@ use futures_util::stream::FuturesUnordered;
 use log::trace;
 use std::collections::HashSet;
 use std::future::Future;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -22,7 +22,7 @@ pub struct TftpServer<H>
 where
     H: Handler,
 {
-    pub(crate) socket: Option<UdpSocket>,
+    pub(crate) socket: Option<Async<UdpSocket>>,
     pub(crate) handler: Arc<Lock<H>>,
     pub(crate) config: ServerConfig,
     pub(crate) reqs_in_progress: HashSet<SocketAddr>,
@@ -45,7 +45,7 @@ type ReqResult = std::result::Result<SocketAddr, (SocketAddr, Error)>;
 /// This contains all results of the futures that are passed in `FuturesUnordered`.
 enum FutResults {
     /// Result of `recv_req` function.
-    RecvReq(Result<(usize, SocketAddr)>, Vec<u8>, UdpSocket),
+    RecvReq(Result<(usize, SocketAddr)>, Vec<u8>, Async<UdpSocket>),
     /// Result of `req_finished` function.
     ReqFinished(ReqResult),
 }
@@ -58,7 +58,7 @@ where
     pub fn listen_addr(&self) -> Result<SocketAddr> {
         let socket =
             self.socket.as_ref().expect("tftp not initialized correctly");
-        Ok(socket.local_addr()?)
+        Ok(socket.get_ref().local_addr()?)
     }
 
     /// Consume and start the server.
@@ -203,14 +203,16 @@ where
         Packet::Error(error.into()).encode(&mut self.buffer);
         let buf = self.buffer.split().freeze();
 
-        let socket = UdpSocket::bind("0.0.0.0:0").await.map_err(Error::Bind)?;
+        let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+        let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
+
         socket.send_to(&buf[..], peer).await?;
 
         Ok(())
     }
 }
 
-async fn recv_req(socket: UdpSocket, mut buf: Vec<u8>) -> FutResults {
+async fn recv_req(socket: Async<UdpSocket>, mut buf: Vec<u8>) -> FutResults {
     let res = socket.recv_from(&mut buf).await.map_err(Into::into);
     FutResults::RecvReq(res, buf, socket)
 }

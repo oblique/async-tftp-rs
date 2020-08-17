@@ -12,11 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - async-tftp is now runtime/executor agnostic thanks to [smol] building
   blocks. You can even run it with a simple `block_on`.
 - Added an example on how you can serve files from a tar.gz.
+- Added `TftpServerBuilder::std_socket`.
 
 ### Changed
 
 - Because `use-tokio` feature flag is removed, `Handler` now only accepts
   `futures_io::AsyncRead` and `futures_io::AsyncWrite`.
+- `TftpServerBuilder::socket` now accepts `async_io::Async<std::net::UdpSocket>`.
 
 ### Removed
 
