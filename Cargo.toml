@@ -9,8 +9,7 @@ readme = "README.md"
 description = "Executor agnostic async TFTP implementation"
 categories = ["network-programming"]
 keywords = [
-    "tftp", "tftpd", "async", "async-await", "futures",
-    "async-std", "tokio", "smol",
+    "tftp", "tftpd", "async-std", "tokio", "smol",
 ]
 repository = "https://github.com/oblique/async-tftp-rs"
 
