@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improve
 
-- Rewrite `tftpd-targz.rs` example with `aysnc-tar` and `async-compression`
+- Rewrite `tftpd-targz.rs` example with `async-tar` and `async-compression`
   crates.
 - Use only `alloc` feature flag for `futures-util`.
 
