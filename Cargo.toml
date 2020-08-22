@@ -31,19 +31,19 @@ futures-util = "0.3.5"
 
 [dev-dependencies]
 anyhow = "1.0.32"
-log = "0.4.11"
 structopt = "0.3.16"
 rand = { version = "0.7.3", features = ["small_rng"] }
 md5 = "0.7.0"
 tempfile = "3.1.0"
 matches = "0.1.8"
 fern = "0.6.0"
-piper = "0.1.3"
-tar = "0.4.29"
-flate2 = "1.0.16"
-threadpool = "1.8.1"
 async-executor = "0.1.2"
 async-channel = "1.4.0"
+
+# deps for tftpd-targz.rs
+async-std = "1.6.3"
+async-tar = "0.3.0"
+async-compression = { version = "0.3.5", features = ["gzip", "futures-io"] }
 
 [features]
 external-client-tests = []
