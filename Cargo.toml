@@ -18,26 +18,26 @@ repository = "https://github.com/oblique/async-tftp-rs"
 thiserror = "1.0.20"
 bytes = "0.5.6"
 nom = "5.1.2"
-num-derive = "0.3.1"
+num-derive = "0.3.2"
 num-traits = "0.2.12"
 log = "0.4.11"
 
-async-io = "0.1.11"
-async-lock = "1.1.5"
-async-trait = "0.1.38"
-blocking = "0.5.2"
-futures-lite = "0.1.11"
+async-io = "0.2.5"
+async-mutex = "1.1.5"
+async-trait = "0.1.39"
+blocking = "0.6.1"
+futures-lite = "1.0.0"
 futures-util = { version = "0.3.5", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 anyhow = "1.0.32"
-structopt = "0.3.16"
+structopt = "0.3.17"
 rand = { version = "0.7.3", features = ["small_rng"] }
 md5 = "0.7.0"
 tempfile = "3.1.0"
 fern = "0.6.0"
-async-executor = "0.1.2"
-async-channel = "1.4.0"
+async-executor = "0.2.0"
+async-channel = "1.4.1"
 
 # deps for tftpd-targz.rs
 async-std = "1.6.3"

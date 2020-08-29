@@ -1,7 +1,7 @@
 #![cfg(feature = "external-client-tests")]
 #![cfg(any(target_os = "linux", target_os = "windows"))]
 
-use async_executor::{Executor, Task};
+use async_executor::Executor;
 use blocking::Unblock;
 
 use super::external_client::*;
@@ -9,7 +9,9 @@ use super::handlers::*;
 use crate::server::TftpServerBuilder;
 
 fn transfer(file_size: usize, block_size: Option<u16>) {
-    Executor::new().run(async {
+    let ex = Executor::new();
+
+    ex.run(async {
         let (md5_tx, md5_rx) = async_channel::bounded(1);
         let handler = RandomHandler::new(file_size, md5_tx);
 
@@ -27,7 +29,7 @@ fn transfer(file_size: usize, block_size: Option<u16>) {
             .with_mut(move |_| external_tftp_recv("test", addr, block_size));
 
         // start server
-        Task::spawn(async move {
+        ex.spawn(async move {
             tftpd.serve().await.unwrap();
         })
         .detach();

@@ -1,5 +1,5 @@
 use async_io::Async;
-use async_lock::Lock;
+use async_mutex::Mutex;
 use bytes::BytesMut;
 use std::collections::HashSet;
 use std::net::{SocketAddr, UdpSocket};
@@ -195,7 +195,7 @@ impl<H: Handler> TftpServerBuilder<H> {
 
         Ok(TftpServer {
             socket: Some(socket),
-            handler: Arc::new(Lock::new(self.handle)),
+            handler: Arc::new(Mutex::new(self.handle)),
             config,
             reqs_in_progress: HashSet::new(),
             buffer: BytesMut::new(),

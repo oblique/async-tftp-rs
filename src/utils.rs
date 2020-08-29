@@ -10,7 +10,7 @@ pub async fn io_timeout<T>(
 ) -> io::Result<T> {
     futures_lite::pin!(f);
 
-    match select(f, Timer::new(dur)).await {
+    match select(f, Timer::after(dur)).await {
         Either::Left((out, _)) => out,
         Either::Right(_) => Err(io::ErrorKind::TimedOut.into()),
     }

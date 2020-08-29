@@ -1,5 +1,5 @@
 use async_io::Async;
-use async_lock::Lock;
+use async_mutex::Mutex;
 use bytes::BytesMut;
 use futures_lite::future::Boxed;
 use futures_lite::{FutureExt, StreamExt};
@@ -23,7 +23,7 @@ where
     H: Handler,
 {
     pub(crate) socket: Option<Async<UdpSocket>>,
-    pub(crate) handler: Arc<Lock<H>>,
+    pub(crate) handler: Arc<Mutex<H>>,
     pub(crate) config: ServerConfig,
     pub(crate) reqs_in_progress: HashSet<SocketAddr>,
     pub(crate) buffer: BytesMut,

@@ -7,9 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Fixed
+### Changed
 
-- Remove `once_cell` from dependencies
+- Remove `once_cell` from dependencies.
+- Upgrade to new smol building blocks.
 
 ## [0.3.1] - 2020-08-22
 
