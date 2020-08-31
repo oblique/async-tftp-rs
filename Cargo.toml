@@ -22,9 +22,9 @@ num-derive = "0.3.2"
 num-traits = "0.2.12"
 log = "0.4.11"
 
-async-io = "0.2.5"
-async-mutex = "1.1.5"
-async-trait = "0.1.39"
+async-io = "0.2.6"
+async-mutex = "1.2.0"
+async-trait = "0.1.40"
 blocking = "0.6.1"
 futures-lite = "1.0.0"
 futures-util = { version = "0.3.5", default-features = false, features = ["alloc"] }
@@ -36,7 +36,7 @@ rand = { version = "0.7.3", features = ["small_rng"] }
 md5 = "0.7.0"
 tempfile = "3.1.0"
 fern = "0.6.0"
-async-executor = "0.2.0"
+async-executor = "0.2.1"
 async-channel = "1.4.1"
 
 # deps for tftpd-targz.rs
