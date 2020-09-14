@@ -3,43 +3,59 @@
 
 use async_executor::Executor;
 use blocking::Unblock;
+use futures_lite::future::block_on;
+use std::cell::Cell;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use super::external_client::*;
 use super::handlers::*;
 use crate::server::TftpServerBuilder;
 
 fn transfer(file_size: usize, block_size: Option<u16>) {
-    let ex = Executor::new();
+    let ex = Arc::new(Executor::new());
+    let transfered = Rc::new(Cell::new(false));
 
-    ex.run(async {
-        let (md5_tx, md5_rx) = async_channel::bounded(1);
-        let handler = RandomHandler::new(file_size, md5_tx);
+    block_on(ex.run({
+        let ex = ex.clone();
+        let transfered = transfered.clone();
 
-        // bind
-        let tftpd = TftpServerBuilder::with_handler(handler)
-            .bind("127.0.0.1:0".parse().unwrap())
-            .build()
-            .await
-            .unwrap();
-        let addr = tftpd.listen_addr().unwrap();
+        async move {
+            let (md5_tx, md5_rx) = async_channel::bounded(1);
+            let handler = RandomHandler::new(file_size, md5_tx);
 
-        // start client
-        let mut tftp_recv = Unblock::new(());
-        let tftp_recv = tftp_recv
-            .with_mut(move |_| external_tftp_recv("test", addr, block_size));
+            // bind
+            let tftpd = TftpServerBuilder::with_handler(handler)
+                .bind("127.0.0.1:0".parse().unwrap())
+                .build()
+                .await
+                .unwrap();
+            let addr = tftpd.listen_addr().unwrap();
 
-        // start server
-        ex.spawn(async move {
-            tftpd.serve().await.unwrap();
-        })
-        .detach();
+            // start client
+            let mut tftp_recv = Unblock::new(());
+            let tftp_recv = tftp_recv.with_mut(move |_| {
+                external_tftp_recv("test", addr, block_size)
+            });
 
-        // check md5
-        let client_md5 = tftp_recv.await.expect("failed to run tftp client");
-        let server_md5 =
-            md5_rx.recv().await.expect("failed to receive server md5");
-        assert_eq!(client_md5, server_md5);
-    });
+            // start server
+            ex.spawn(async move {
+                tftpd.serve().await.unwrap();
+            })
+            .detach();
+
+            // check md5
+            let client_md5 =
+                tftp_recv.await.expect("failed to run tftp client");
+            let server_md5 =
+                md5_rx.recv().await.expect("failed to receive server md5");
+            assert_eq!(client_md5, server_md5);
+
+            transfered.set(true);
+        }
+    }));
+
+    assert!(transfered.get());
 }
 
 #[test]
