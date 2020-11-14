@@ -25,8 +25,8 @@ pub enum Error {
     MaxSendRetriesReached(std::net::SocketAddr, u16),
 }
 
-impl<'a> From<nom::Err<(&'a [u8], nom::error::ErrorKind)>> for Error {
-    fn from(_error: nom::Err<(&'a [u8], nom::error::ErrorKind)>) -> Error {
+impl From<nom::Err<nom::error::Error<&[u8]>>> for Error {
+    fn from(_error: nom::Err<nom::error::Error<&[u8]>>) -> Error {
         Error::InvalidPacket
     }
 }
