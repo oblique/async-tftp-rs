@@ -28,7 +28,7 @@
 //! use async_tftp::Result;
 //!
 //! fn main() -> Result<()> {
-//!     smol::run(async { // or any other runtime/executor
+//!     smol::block_on(async { // or any other runtime/executor
 //!         let tftpd = TftpServerBuilder::with_dir_ro(".")?.build().await?;
 //!         tftpd.serve().await?;
 //!         Ok(())
@@ -40,7 +40,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! smol = "0.3" # or any other runtime/executor
+//! smol = "1" # or any other runtime/executor
 //! async-tftp = "0.3"
 //! ```
 //!
