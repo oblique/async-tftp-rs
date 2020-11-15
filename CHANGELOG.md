@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upgrade to `bytes` 0.6.0
 - Upgrade to `nom` 6.0.0
 - Upgrade other dependencies
+- Use async-executor instead of FuturesUnordered
 
 ## [0.3.3] - 2020-09-14
 
