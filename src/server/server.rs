@@ -1,3 +1,4 @@
+use async_executor::Executor;
 use async_io::Async;
 use async_mutex::Mutex;
 use log::trace;
@@ -21,7 +22,7 @@ where
     pub(crate) socket: Async<UdpSocket>,
     pub(crate) handler: Arc<Mutex<H>>,
     pub(crate) reqs_in_progress: Arc<Mutex<HashSet<SocketAddr>>>,
-    pub(crate) ex: async_executor::Executor<'static>,
+    pub(crate) ex: Executor<'static>,
     pub(crate) config: ServerConfig,
 }
 

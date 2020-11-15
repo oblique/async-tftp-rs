@@ -1,3 +1,4 @@
+use async_executor::Executor;
 use async_io::Async;
 use async_mutex::Mutex;
 use std::collections::HashSet;
@@ -196,7 +197,7 @@ impl<H: Handler> TftpServerBuilder<H> {
             socket,
             handler: Arc::new(Mutex::new(self.handle)),
             reqs_in_progress: Arc::new(Mutex::new(HashSet::new())),
-            ex: async_executor::Executor::new(),
+            ex: Executor::new(),
             config,
         })
     }
