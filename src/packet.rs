@@ -1,5 +1,5 @@
 ///! Packet definitions.
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use num_derive::FromPrimitive;
 use std::convert::From;
 use std::io;
@@ -114,6 +114,12 @@ impl<'a> Packet<'a> {
     pub(crate) fn encode_data_head(block_id: u16, buf: &mut BytesMut) {
         buf.put_u16(PacketType::Data as u16);
         buf.put_u16(block_id);
+    }
+
+    pub(crate) fn into_bytes(self) -> Bytes {
+        let mut buf = BytesMut::new();
+        self.encode(&mut buf);
+        buf.freeze()
     }
 }
 
