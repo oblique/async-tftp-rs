@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-/// Type alias to `Result<T, Error>`.
+/// Type alias to [`Result<T, Error>`](std::result::Result).
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Error type of this crate.

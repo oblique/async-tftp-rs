@@ -46,9 +46,9 @@
 //!
 //! [smol]: https://docs.rs/smol
 //!
-//! [`timeout`]: server/struct.TftpServerBuilder.html#method.timeout
-//! [block size limit]: server/struct.TftpServerBuilder.html#method.block_size_limit
-//! [`Handler`]: server/trait.Handler.html
+//! [`timeout`]: server::TftpServerBuilder::timeout
+//! [block size limit]: server::TftpServerBuilder::block_size_limit
+//! [`Handler`]: server::Handler
 //! [`tftpd-targz.rs`]: https://github.com/oblique/async-tftp-rs/blob/master/examples/tftpd-targz.rs
 //!
 //! [RFC 1350]: https://tools.ietf.org/html/rfc1350

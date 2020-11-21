@@ -36,8 +36,6 @@ impl TftpServerBuilder<DirHandler> {
     }
 
     /// Create new buidler with [`DirHandler`] that serves only write requests.
-    ///
-    /// [`DirHandler`]: handlers/struct.DirHandler.html
     pub fn with_dir_wo<P>(dir: P) -> Result<TftpServerBuilder<DirHandler>>
     where
         P: AsRef<Path>,
@@ -47,8 +45,6 @@ impl TftpServerBuilder<DirHandler> {
     }
 
     /// Create new buidler with [`DirHandler`] that serves read and write requests.
-    ///
-    /// [`DirHandler`]: handlers/struct.DirHandler.html
     pub fn with_dir_rw<P>(dir: P) -> Result<TftpServerBuilder<DirHandler>>
     where
         P: AsRef<Path>,
@@ -60,8 +56,6 @@ impl TftpServerBuilder<DirHandler> {
 
 impl<H: Handler> TftpServerBuilder<H> {
     /// Create new builder with custom [`Handler`].
-    ///
-    /// [`Handler`]: trait.Handler.html
     pub fn with_handler(handler: H) -> Self {
         TftpServerBuilder {
             handle: handler,
@@ -108,15 +102,13 @@ impl<H: Handler> TftpServerBuilder<H> {
     /// Set retry timeout.
     ///
     /// Client can override this (RFC2349). If you want to enforce it you must
-    /// combine it [`ignore_client_timeout`].
+    /// combine it [`ignore_client_timeout`](Self::ignore_client_timeout).
     ///
     /// This crate allows you to set non-standard timeouts (i.e. timeouts that are less
     /// than a second). However if you choose to do it make sure you test it well in your
     /// environment since client's behavior is undefined.
     ///
     /// **Default:** 3 seconds
-    ///
-    /// [`ignore_client_timeout`]: struct.TftpServerBuilder.html#method.ignore_client_timeout
     pub fn timeout(self, timeout: Duration) -> Self {
         TftpServerBuilder {
             timeout,
@@ -177,8 +169,6 @@ impl<H: Handler> TftpServerBuilder<H> {
     }
 
     /// Build [`TftpServer`].
-    ///
-    /// [`TftpServer`]: struct.TftpServer.html
     pub async fn build(mut self) -> Result<TftpServer<H>> {
         let socket = match self.socket.take() {
             Some(socket) => socket,
