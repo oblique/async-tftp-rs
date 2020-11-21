@@ -1,5 +1,5 @@
 #![cfg(feature = "external-client-tests")]
-#![cfg(any(target_os = "linux", target_os = "windows"))]
+#![cfg(target_os = "linux")]
 
 use async_channel::Sender;
 use futures_lite::AsyncRead;
