@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [0.3.4] - 2020-12-13
+
 ### Changed
 
 - Upgrade to `bytes` 0.6.0
-- Upgrade to `nom` 6.0.0
+- Upgrade to `nom` 6.0.1
 - Upgrade other dependencies
 - Use async-executor instead of FuturesUnordered
 
@@ -100,7 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [First release](https://docs.rs/async-tftp/0.1.0)
 
 
-[unreleased]: https://github.com/oblique/async-tftp-rs/compare/0.3.3...HEAD
+[unreleased]: https://github.com/oblique/async-tftp-rs/compare/0.3.4...HEAD
+[0.3.4]: https://github.com/oblique/async-tftp-rs/compare/0.3.3...0.3.4
 [0.3.3]: https://github.com/oblique/async-tftp-rs/compare/0.3.2...0.3.3
 [0.3.2]: https://github.com/oblique/async-tftp-rs/compare/0.3.1...0.3.2
 [0.3.1]: https://github.com/oblique/async-tftp-rs/compare/0.3.0...0.3.1
