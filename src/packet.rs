@@ -116,7 +116,7 @@ impl<'a> Packet<'a> {
         buf.put_u16(block_id);
     }
 
-    pub(crate) fn into_bytes(self) -> Bytes {
+    pub(crate) fn to_bytes(&self) -> Bytes {
         let mut buf = BytesMut::new();
         self.encode(&mut buf);
         buf.freeze()

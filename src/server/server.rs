@@ -150,7 +150,7 @@ async fn send_error(error: Error, peer: SocketAddr) -> Result<()> {
     let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
     let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
 
-    let data = Packet::Error(error.into()).into_bytes();
+    let data = Packet::Error(error.into()).to_bytes();
     socket.send_to(&data[..], peer).await?;
 
     Ok(())
