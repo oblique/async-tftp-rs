@@ -1,6 +1,6 @@
 use async_executor::Executor;
 use async_io::Async;
-use async_mutex::Mutex;
+use async_lock::Mutex;
 use log::trace;
 use std::collections::HashSet;
 use std::future::Future;

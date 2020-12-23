@@ -1,6 +1,6 @@
 use async_executor::Executor;
 use async_io::Async;
-use async_mutex::Mutex;
+use async_lock::Mutex;
 use std::collections::HashSet;
 use std::net::{SocketAddr, UdpSocket};
 use std::path::Path;
