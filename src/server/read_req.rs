@@ -1,13 +1,11 @@
-#![allow(clippy::transmute_ptr_to_ptr)]
-
 use async_io::Async;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_lite::{AsyncRead, AsyncReadExt};
 use log::trace;
 use std::cmp;
 use std::io;
-use std::mem;
 use std::net::{SocketAddr, UdpSocket};
+use std::slice;
 use std::time::Duration;
 
 use crate::error::{Error, Result};
@@ -99,8 +97,12 @@ where
 
             // Read block in self.buffer
             let buf = unsafe {
-                let data_buf: &mut [u8] =
-                    mem::transmute(self.buffer.bytes_mut());
+                let uninit_buf = self.buffer.chunk_mut();
+
+                let data_buf = slice::from_raw_parts_mut(
+                    uninit_buf.as_mut_ptr(),
+                    uninit_buf.len(),
+                );
 
                 let len = self.read_block(data_buf).await?;
                 is_last_block = len < self.block_size;
