@@ -51,8 +51,10 @@ async-tftp = "0.3"
 ```
 
 ## Running examples with cargo
+
 There are some examples included with this crate.
 You can run them from a source checkout with cargo:
+
 ```bash
 $ cargo run --example tftpd-dir
 TFTP directory: ...
