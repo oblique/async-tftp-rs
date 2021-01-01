@@ -50,6 +50,22 @@ smol = "1" # or any other runtime/executor
 async-tftp = "0.3"
 ```
 
+## Running examples with cargo
+
+There are some examples included with this crate.
+You can run them from a source checkout with cargo:
+
+```bash
+$ cargo run --example tftpd-dir
+TFTP directory: ...
+Listening on: 0.0.0.0:6969
+^C
+
+$ cargo run --example tftpd-targz <archive-path>
+Listening on: 0.0.0.0:6969
+^C
+```
+
 # License
 
 [MIT][license]
