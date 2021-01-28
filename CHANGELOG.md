@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [0.3.5] - 2021-01-28
+
+### Changed
+
+- Upgrade to `bytes` 1.0
+- Migrate from `async-mutex` to `async-lock`
+- Upgdate other dependencies
+
 ## [0.3.4] - 2020-12-13
 
 ### Changed
@@ -102,7 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [First release](https://docs.rs/async-tftp/0.1.0)
 
 
-[unreleased]: https://github.com/oblique/async-tftp-rs/compare/0.3.4...HEAD
+[unreleased]: https://github.com/oblique/async-tftp-rs/compare/0.3.5...HEAD
+[0.3.5]: https://github.com/oblique/async-tftp-rs/compare/0.3.4...0.3.5
 [0.3.4]: https://github.com/oblique/async-tftp-rs/compare/0.3.3...0.3.4
 [0.3.3]: https://github.com/oblique/async-tftp-rs/compare/0.3.2...0.3.3
 [0.3.2]: https://github.com/oblique/async-tftp-rs/compare/0.3.1...0.3.2
