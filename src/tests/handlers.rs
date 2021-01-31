@@ -2,7 +2,7 @@
 #![cfg(target_os = "linux")]
 
 use async_channel::Sender;
-use futures_lite::io::Sink;
+use futures_util::io::Sink;
 use std::net::SocketAddr;
 use std::path::Path;
 

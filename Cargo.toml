@@ -27,7 +27,9 @@ async-io = "1.3.1"
 async-lock = "2.3.0"
 async-executor = "1.4.0"
 blocking = "1.0.2"
-futures-lite = "1.11.3"
+futures-io = "0.3.12"
+futures-util = { version = "0.3.12", default-features = true, features = ["io"] }
+pin-utils = "0.1.0"
 
 [dev-dependencies]
 anyhow = "1.0.38"
@@ -37,6 +39,7 @@ md5 = "0.7.0"
 tempfile = "3.2.0"
 fern = "0.6.0"
 async-channel = "1.5.1"
+futures-lite = "1.11.3"
 
 # deps for tftpd-targz.rs
 async-std = "1.9.0"

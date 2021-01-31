@@ -2,7 +2,7 @@
 #![cfg(target_os = "linux")]
 
 use async_channel::Sender;
-use futures_lite::AsyncRead;
+use futures_io::AsyncRead;
 use rand::rngs::SmallRng;
 use rand::{RngCore, SeedableRng};
 use std::cmp;

@@ -1,6 +1,7 @@
 use async_io::Async;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_lite::{AsyncRead, AsyncReadExt};
+use futures_io::AsyncRead;
+use futures_util::io::AsyncReadExt;
 use log::trace;
 use std::cmp;
 use std::io;
