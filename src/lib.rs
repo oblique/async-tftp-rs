@@ -62,6 +62,7 @@ pub mod server;
 pub mod packet;
 
 mod error;
+mod executor;
 mod parse;
 mod tests;
 mod utils;

@@ -1,4 +1,3 @@
-use async_executor::Executor;
 use async_io::Async;
 use async_lock::Mutex;
 use log::trace;
@@ -12,6 +11,7 @@ use super::read_req::*;
 use super::write_req::*;
 use super::Handler;
 use crate::error::*;
+use crate::executor::Executor;
 use crate::packet::{Packet, RwReq};
 
 /// TFTP server.
@@ -22,7 +22,7 @@ where
     pub(crate) socket: Async<UdpSocket>,
     pub(crate) handler: Arc<Mutex<H>>,
     pub(crate) reqs_in_progress: Arc<Mutex<HashSet<SocketAddr>>>,
-    pub(crate) ex: Executor<'static>,
+    pub(crate) spawner: Option<crate::executor::Spawner>,
     pub(crate) config: ServerConfig,
 }
 
@@ -47,17 +47,20 @@ where
     }
 
     /// Consume and start the server.
-    pub async fn serve(self) -> Result<()> {
-        self.ex
-            .run(async {
-                let mut buf = [0u8; 4096];
+    pub async fn serve(mut self) -> Result<()> {
+        let mut ex = Executor::new();
 
-                loop {
-                    let (len, peer) = self.socket.recv_from(&mut buf).await?;
-                    self.handle_req_packet(peer, &buf[..len]).await;
-                }
-            })
-            .await
+        self.spawner = Some(ex.spawner());
+
+        ex.run(async move {
+            let mut buf = [0u8; 4096];
+
+            loop {
+                let (len, peer) = self.socket.recv_from(&mut buf).await?;
+                self.handle_req_packet(peer, &buf[..len]).await;
+            }
+        })
+        .await
     }
 
     async fn handle_req_packet(&self, peer: SocketAddr, data: &[u8]) {
@@ -109,7 +112,10 @@ where
         let reqs_in_progress = Arc::clone(&self.reqs_in_progress);
 
         // Run request future in a new task
-        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress)).detach();
+        self.spawner
+            .as_ref()
+            .expect("async_tftp::Server not initialized correctly")
+            .spawn(run_req(req_fut, peer, reqs_in_progress));
     }
 
     fn handle_wrq(&self, peer: SocketAddr, req: RwReq) {
@@ -142,7 +148,10 @@ where
         let reqs_in_progress = Arc::clone(&self.reqs_in_progress);
 
         // Run request future in a new task
-        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress)).detach();
+        self.spawner
+            .as_ref()
+            .expect("async_tftp::Server not initialized correctly")
+            .spawn(run_req(req_fut, peer, reqs_in_progress));
     }
 }
 
