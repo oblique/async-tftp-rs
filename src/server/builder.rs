@@ -183,12 +183,14 @@ impl<H: Handler> TftpServerBuilder<H> {
             ignore_client_block_size: self.ignore_client_block_size,
         };
 
+        let local_ip = socket.as_ref().local_addr()?.ip();
         Ok(TftpServer {
             socket,
             handler: Arc::new(Mutex::new(self.handle)),
             reqs_in_progress: Arc::new(Mutex::new(HashSet::new())),
             ex: Executor::new(),
             config,
+            local_ip,
         })
     }
 }

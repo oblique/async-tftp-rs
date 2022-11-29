@@ -4,7 +4,7 @@ use futures_lite::{AsyncWrite, AsyncWriteExt};
 use log::trace;
 use std::cmp;
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::time::Duration;
 
 use crate::error::{Error, Result};
@@ -40,6 +40,7 @@ where
         peer: SocketAddr,
         req: &RwReq,
         config: ServerConfig,
+        local_ip: IpAddr,
     ) -> Result<WriteRequest<'w, W>> {
         let oack_opts = build_oack_opts(&config, req);
 
@@ -55,7 +56,7 @@ where
             .map(|t| Duration::from_secs(u64::from(t)))
             .unwrap_or(config.timeout);
 
-        let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+        let addr = SocketAddr::new(local_ip, 0);
         let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
 
         Ok(WriteRequest {
