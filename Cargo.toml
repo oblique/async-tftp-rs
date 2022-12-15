@@ -39,7 +39,7 @@ fern = "0.6.1"
 async-channel = "1.8.0"
 
 # deps for tftpd-targz.rs
-async-std = "1.12.0"
+async-std = { version = "1.12.0", features = ["unstable"] }
 async-tar = "0.4.2"
 async-compression = { version = "0.3.15", features = ["gzip", "futures-io"] }
 
