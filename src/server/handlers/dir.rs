@@ -137,7 +137,7 @@ fn secure_path(
 }
 
 fn open_file_ro(path: PathBuf) -> io::Result<(File, Option<u64>)> {
-    let file = File::open(&path)?;
+    let file = File::open(path)?;
     let len = file.metadata().ok().map(|m| m.len());
     Ok((file, len))
 }

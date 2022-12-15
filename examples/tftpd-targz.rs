@@ -49,7 +49,7 @@ impl Handler for TftpdTarGzHandler {
         while let Some(Ok(entry)) = entries.next().await {
             if entry
                 .path()
-                .map(|p| strip_path_prefixes(&*p) == req_path)
+                .map(|p| strip_path_prefixes(&p) == req_path)
                 .unwrap_or(false)
             {
                 // We manage to find the entry.
