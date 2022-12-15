@@ -4,7 +4,7 @@ use futures_lite::{AsyncRead, AsyncReadExt};
 use log::trace;
 use std::cmp;
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::slice;
 use std::time::Duration;
 
@@ -37,6 +37,7 @@ where
         peer: SocketAddr,
         req: &RwReq,
         config: ServerConfig,
+        local_ip: IpAddr,
     ) -> Result<ReadRequest<'r, R>> {
         let oack_opts = build_oack_opts(&config, req, file_size);
 
@@ -52,7 +53,7 @@ where
             .map(|t| Duration::from_secs(u64::from(t)))
             .unwrap_or(config.timeout);
 
-        let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+        let addr = SocketAddr::new(local_ip, 0);
         let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
 
         Ok(ReadRequest {

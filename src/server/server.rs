@@ -4,7 +4,7 @@ use async_lock::Mutex;
 use log::trace;
 use std::collections::HashSet;
 use std::future::Future;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -24,6 +24,7 @@ where
     pub(crate) reqs_in_progress: Arc<Mutex<HashSet<SocketAddr>>>,
     pub(crate) ex: Executor<'static>,
     pub(crate) config: ServerConfig,
+    pub(crate) local_ip: IpAddr,
 }
 
 #[derive(Clone)]
@@ -87,6 +88,7 @@ where
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
+        let local_ip = self.local_ip.clone();
 
         // Prepare request future
         let req_fut = async move {
@@ -98,7 +100,7 @@ where
                 .map_err(Error::Packet)?;
 
             let mut read_req =
-                ReadRequest::init(&mut reader, size, peer, &req, config)
+                ReadRequest::init(&mut reader, size, peer, &req, config, local_ip)
                     .await?;
 
             read_req.handle().await;
@@ -109,7 +111,7 @@ where
         let reqs_in_progress = Arc::clone(&self.reqs_in_progress);
 
         // Run request future in a new task
-        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress)).detach();
+        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress, local_ip)).detach();
     }
 
     fn handle_wrq(&self, peer: SocketAddr, req: RwReq) {
@@ -117,6 +119,7 @@ where
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
+        let local_ip = self.local_ip.clone();
 
         // Prepare request future
         let req_fut = async move {
@@ -132,7 +135,7 @@ where
                 .map_err(Error::Packet)?;
 
             let mut write_req =
-                WriteRequest::init(&mut writer, peer, &req, config).await?;
+                WriteRequest::init(&mut writer, peer, &req, config, local_ip).await?;
 
             write_req.handle().await;
 
@@ -142,12 +145,12 @@ where
         let reqs_in_progress = Arc::clone(&self.reqs_in_progress);
 
         // Run request future in a new task
-        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress)).detach();
+        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress, local_ip)).detach();
     }
 }
 
-async fn send_error(error: Error, peer: SocketAddr) -> Result<()> {
-    let addr: SocketAddr = "0.0.0.0:0".parse().unwrap();
+async fn send_error(error: Error, peer: SocketAddr, local_ip: IpAddr) -> Result<()> {
+    let addr: SocketAddr = SocketAddr::new(local_ip, 0);
     let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
 
     let data = Packet::Error(error.into()).to_bytes();
@@ -160,11 +163,12 @@ async fn run_req(
     req_fut: impl Future<Output = Result<()>>,
     peer: SocketAddr,
     reqs_in_progress: Arc<Mutex<HashSet<SocketAddr>>>,
+    local_ip: IpAddr,
 ) {
     if let Err(e) = req_fut.await {
         trace!("Request failed (peer: {}, error: {}", &peer, &e);
 
-        if let Err(e) = send_error(e, peer).await {
+        if let Err(e) = send_error(e, peer, local_ip).await {
             trace!("Failed to send error to peer {}: {}", &peer, &e);
         }
     }
