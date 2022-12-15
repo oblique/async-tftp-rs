@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+- Send responses and errors from the bind address [#14](https://github.com/oblique/async-tftp-rs/pull/14)
+- Upgrade dependencies
+
 ## [0.3.5] - 2021-01-28
 
 ### Changed
