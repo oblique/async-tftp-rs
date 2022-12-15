@@ -88,7 +88,7 @@ where
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
-        let local_ip = self.local_ip.clone();
+        let local_ip = self.local_ip;
 
         // Prepare request future
         let req_fut = async move {
@@ -99,9 +99,15 @@ where
                 .await
                 .map_err(Error::Packet)?;
 
-            let mut read_req =
-                ReadRequest::init(&mut reader, size, peer, &req, config, local_ip)
-                    .await?;
+            let mut read_req = ReadRequest::init(
+                &mut reader,
+                size,
+                peer,
+                &req,
+                config,
+                local_ip,
+            )
+            .await?;
 
             read_req.handle().await;
 
@@ -111,7 +117,9 @@ where
         let reqs_in_progress = Arc::clone(&self.reqs_in_progress);
 
         // Run request future in a new task
-        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress, local_ip)).detach();
+        self.ex
+            .spawn(run_req(req_fut, peer, reqs_in_progress, local_ip))
+            .detach();
     }
 
     fn handle_wrq(&self, peer: SocketAddr, req: RwReq) {
@@ -119,7 +127,7 @@ where
 
         let handler = Arc::clone(&self.handler);
         let config = self.config.clone();
-        let local_ip = self.local_ip.clone();
+        let local_ip = self.local_ip;
 
         // Prepare request future
         let req_fut = async move {
@@ -135,7 +143,8 @@ where
                 .map_err(Error::Packet)?;
 
             let mut write_req =
-                WriteRequest::init(&mut writer, peer, &req, config, local_ip).await?;
+                WriteRequest::init(&mut writer, peer, &req, config, local_ip)
+                    .await?;
 
             write_req.handle().await;
 
@@ -145,11 +154,17 @@ where
         let reqs_in_progress = Arc::clone(&self.reqs_in_progress);
 
         // Run request future in a new task
-        self.ex.spawn(run_req(req_fut, peer, reqs_in_progress, local_ip)).detach();
+        self.ex
+            .spawn(run_req(req_fut, peer, reqs_in_progress, local_ip))
+            .detach();
     }
 }
 
-async fn send_error(error: Error, peer: SocketAddr, local_ip: IpAddr) -> Result<()> {
+async fn send_error(
+    error: Error,
+    peer: SocketAddr,
+    local_ip: IpAddr,
+) -> Result<()> {
     let addr: SocketAddr = SocketAddr::new(local_ip, 0);
     let socket = Async::<UdpSocket>::bind(addr).map_err(Error::Bind)?;
 
