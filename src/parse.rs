@@ -5,7 +5,6 @@ use nom::multi::many0;
 use nom::number::complete::be_u16;
 use nom::sequence::tuple;
 use nom::IResult;
-use num_traits::FromPrimitive;
 use std::str::{self, FromStr};
 
 use crate::error::Result;

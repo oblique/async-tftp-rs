@@ -1,6 +1,5 @@
 ///! Packet definitions.
 use bytes::{BufMut, Bytes, BytesMut};
-use num_derive::FromPrimitive;
 use std::convert::From;
 use std::io;
 use std::str;
@@ -10,7 +9,7 @@ use crate::parse::*;
 
 pub(crate) const PACKET_DATA_HEADER_LEN: usize = 4;
 
-#[derive(Debug, Clone, Copy, PartialEq, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub(crate) enum PacketType {
     Rrq = 1,
@@ -66,6 +65,26 @@ pub(crate) struct Opts {
     pub transfer_size: Option<u64>,
 }
 
+impl PacketType {
+    pub(crate) fn from_u16(n: u16) -> Option<PacketType> {
+        match n {
+            1 => Some(PacketType::Rrq),
+            2 => Some(PacketType::Wrq),
+            3 => Some(PacketType::Data),
+            4 => Some(PacketType::Ack),
+            5 => Some(PacketType::Error),
+            6 => Some(PacketType::OAck),
+            _ => None,
+        }
+    }
+}
+
+impl From<PacketType> for u16 {
+    fn from(value: PacketType) -> Self {
+        value as u16
+    }
+}
+
 impl<'a> Packet<'a> {
     pub(crate) fn decode(data: &[u8]) -> Result<Packet> {
         parse_packet(data)
@@ -74,7 +93,7 @@ impl<'a> Packet<'a> {
     pub(crate) fn encode(&self, buf: &mut BytesMut) {
         match self {
             Packet::Rrq(req) => {
-                buf.put_u16(PacketType::Rrq as u16);
+                buf.put_u16(PacketType::Rrq.into());
                 buf.put_slice(req.filename.as_bytes());
                 buf.put_u8(0);
                 buf.put_slice(req.mode.to_str().as_bytes());
@@ -82,7 +101,7 @@ impl<'a> Packet<'a> {
                 req.opts.encode(buf);
             }
             Packet::Wrq(req) => {
-                buf.put_u16(PacketType::Wrq as u16);
+                buf.put_u16(PacketType::Wrq.into());
                 buf.put_slice(req.filename.as_bytes());
                 buf.put_u8(0);
                 buf.put_slice(req.mode.to_str().as_bytes());
@@ -90,29 +109,29 @@ impl<'a> Packet<'a> {
                 req.opts.encode(buf);
             }
             Packet::Data(block, data) => {
-                buf.put_u16(PacketType::Data as u16);
+                buf.put_u16(PacketType::Data.into());
                 buf.put_u16(*block);
                 buf.put_slice(data);
             }
             Packet::Ack(block) => {
-                buf.put_u16(PacketType::Ack as u16);
+                buf.put_u16(PacketType::Ack.into());
                 buf.put_u16(*block);
             }
             Packet::Error(error) => {
-                buf.put_u16(PacketType::Error as u16);
+                buf.put_u16(PacketType::Error.into());
                 buf.put_u16(error.code());
                 buf.put_slice(error.msg().as_bytes());
                 buf.put_u8(0);
             }
             Packet::OAck(opts) => {
-                buf.put_u16(PacketType::OAck as u16);
+                buf.put_u16(PacketType::OAck.into());
                 opts.encode(buf);
             }
         }
     }
 
     pub(crate) fn encode_data_head(block_id: u16, buf: &mut BytesMut) {
-        buf.put_u16(PacketType::Data as u16);
+        buf.put_u16(PacketType::Data.into());
         buf.put_u16(block_id);
     }
 

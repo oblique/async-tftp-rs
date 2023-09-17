@@ -16,8 +16,6 @@ repository = "https://github.com/oblique/async-tftp-rs"
 bytes = "1.5.0"
 log = "0.4.20"
 nom = "7.1.3"
-num-derive = "0.3.3"
-num-traits = "0.2.16"
 thiserror = "1.0.48"
 
 async-executor = "1.5.1"
