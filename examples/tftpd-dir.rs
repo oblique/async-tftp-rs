@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_tftp::server::TftpServerBuilder;
 
 #[tokio::main]
-fn main() -> Result<()> {
+async fn main() -> Result<()> {
     fern::Dispatch::new()
         .level(log::LevelFilter::Info)
         .level_for("async_tftp", log::LevelFilter::Trace)
