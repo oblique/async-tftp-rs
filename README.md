@@ -33,12 +33,11 @@ Features:
 use async_tftp::server::TftpServerBuilder;
 use async_tftp::Result;
 
-fn main() -> Result<()> {
-    smol::block_on(async { // or any other runtime/executor
-        let tftpd = TftpServerBuilder::with_dir_ro(".")?.build().await?;
-        tftpd.serve().await?;
-        Ok(())
-    })
+#[tokio::main] // or any other runtime/executor
+async fn main() -> Result<()> {
+    let tftpd = TftpServerBuilder::with_dir_ro(".")?.build().await?;
+    tftpd.serve().await?;
+    Ok(())
 }
 ```
 
@@ -46,8 +45,9 @@ Add in `Cargo.toml`:
 
 ```toml
 [dependencies]
-smol = "1" # or any other runtime/executor
 async-tftp = "0.3"
+# or any other runtime/executor
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ## Running examples with cargo

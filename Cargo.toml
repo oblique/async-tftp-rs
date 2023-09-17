@@ -37,6 +37,7 @@ md5 = "0.7.0"
 rand = { version = "0.8.5", features = ["small_rng"] }
 structopt = "0.3.26"
 tempfile = "3.3.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 # deps for tftpd-targz.rs
 async-compression = { version = "0.3.15", features = ["gzip", "futures-io"] }
