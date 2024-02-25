@@ -31,9 +31,11 @@ where
 pub(crate) struct ServerConfig {
     pub(crate) timeout: Duration,
     pub(crate) block_size_limit: Option<u16>,
+    pub(crate) window_size_limit: Option<u16>,
     pub(crate) max_send_retries: u32,
     pub(crate) ignore_client_timeout: bool,
     pub(crate) ignore_client_block_size: bool,
+    pub(crate) ignore_client_window_size: bool,
 }
 
 pub(crate) const DEFAULT_BLOCK_SIZE: usize = 512;
