@@ -24,7 +24,6 @@ impl RandomHandler {
     }
 }
 
-#[crate::async_trait]
 impl Handler for RandomHandler {
     type Reader = RandomFile;
     type Writer = Sink;

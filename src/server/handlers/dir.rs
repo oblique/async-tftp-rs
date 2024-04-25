@@ -59,7 +59,6 @@ impl DirHandler {
     }
 }
 
-#[crate::async_trait]
 impl crate::server::Handler for DirHandler {
     type Reader = Unblock<File>;
     type Writer = Unblock<File>;

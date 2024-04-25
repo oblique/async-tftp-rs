@@ -29,7 +29,6 @@ fn strip_path_prefixes(path: &Path) -> &Path {
     path.strip_prefix("/").or_else(|_| path.strip_prefix("./")).unwrap_or(path)
 }
 
-#[async_tftp::async_trait]
 impl Handler for TftpdTarGzHandler {
     type Reader = Entry<Archive<GzipDecoder<BufReader<File>>>>;
     type Writer = Sink;

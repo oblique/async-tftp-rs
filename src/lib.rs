@@ -67,6 +67,3 @@ mod tests;
 mod utils;
 
 pub use crate::error::*;
-
-/// Re-export of `async_trait:async_trait`.
-pub use async_trait::async_trait;
