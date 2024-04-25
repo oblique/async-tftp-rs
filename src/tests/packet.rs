@@ -266,7 +266,7 @@ fn check_packet() {
 
 #[test]
 fn check_blksize_boundaries() {
-    let (_, opts) = parse_opts(b"blksize\07\0").unwrap();
+    let opts = parse_opts(b"blksize\07\0").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -275,7 +275,7 @@ fn check_blksize_boundaries() {
         }
     );
 
-    let (_, opts) = parse_opts(b"blksize\08\0").unwrap();
+    let opts = parse_opts(b"blksize\08\0").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -284,7 +284,7 @@ fn check_blksize_boundaries() {
         }
     );
 
-    let (_, opts) = parse_opts(b"blksize\065464\0").unwrap();
+    let opts = parse_opts(b"blksize\065464\0").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -293,7 +293,7 @@ fn check_blksize_boundaries() {
         }
     );
 
-    let (_, opts) = parse_opts(b"blksize\065465\0").unwrap();
+    let opts = parse_opts(b"blksize\065465\0").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -305,7 +305,7 @@ fn check_blksize_boundaries() {
 
 #[test]
 fn check_timeout_boundaries() {
-    let (_, opts) = parse_opts(b"timeout\00\0").unwrap();
+    let opts = parse_opts(b"timeout\00\0").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -314,7 +314,7 @@ fn check_timeout_boundaries() {
         }
     );
 
-    let (_, opts) = parse_opts(b"timeout\01\0").unwrap();
+    let opts = parse_opts(b"timeout\01\0").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -323,7 +323,7 @@ fn check_timeout_boundaries() {
         }
     );
 
-    let (_, opts) = parse_opts(b"timeout\0255\0").unwrap();
+    let opts = parse_opts(b"timeout\0255\0").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -332,7 +332,7 @@ fn check_timeout_boundaries() {
         }
     );
 
-    let (_, opts) = parse_opts(b"timeout\0256\0").unwrap();
+    let opts = parse_opts(b"timeout\0256\0").unwrap();
     assert_eq!(
         opts,
         Opts {

@@ -1,4 +1,4 @@
-///! Packet definitions.
+//! Packet definitions.
 use bytes::{BufMut, Bytes, BytesMut};
 use std::convert::From;
 use std::io;

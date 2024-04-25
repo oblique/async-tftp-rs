@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Changed
+
+- Remove `num-traits` dependency
+- Update all dependencies
+- Use `tokio` in examples
+
 ## [0.3.6] - 2022-12-16
 
 ### Changed

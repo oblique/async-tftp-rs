@@ -24,9 +24,3 @@ pub enum Error {
     #[error("Max send retries reached (peer: {0},  block id: {1})")]
     MaxSendRetriesReached(std::net::SocketAddr, u16),
 }
-
-impl From<nom::Err<nom::error::Error<&[u8]>>> for Error {
-    fn from(_error: nom::Err<nom::error::Error<&[u8]>>) -> Error {
-        Error::InvalidPacket
-    }
-}
