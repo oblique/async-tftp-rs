@@ -62,7 +62,7 @@ pub(crate) fn parse_opts(mut input: &[u8]) -> Option<Opts> {
 
         if name.eq_ignore_ascii_case("blksize") {
             if let Ok(val) = u16::from_str(val) {
-                if val >= 8 && val <= 65464 {
+                if (8..=65464).contains(&val) {
                     opts.block_size = Some(val);
                 }
             }
