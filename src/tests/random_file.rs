@@ -23,7 +23,7 @@ impl RandomFile {
         RandomFile {
             size,
             read_size: 0,
-            rng: SmallRng::from_entropy(),
+            rng: SmallRng::from_os_rng(),
             md5_ctx: Some(md5::Context::new()),
             md5_tx: Some(md5_tx),
         }
