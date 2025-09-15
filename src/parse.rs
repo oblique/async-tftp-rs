@@ -76,6 +76,12 @@ pub(crate) fn parse_opts(mut input: &[u8]) -> Option<Opts> {
             if let Ok(val) = u64::from_str(val) {
                 opts.transfer_size = Some(val);
             }
+        } else if name.eq_ignore_ascii_case("windowsize") {
+            if let Ok(val) = u16::from_str(val) {
+                if val >= 1 {
+                    opts.window_size = Some(val);
+                }
+            }
         }
 
         input = rest;

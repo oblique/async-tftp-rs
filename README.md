@@ -13,6 +13,7 @@ The following RFCs are implemented:
 * [RFC 2347] - TFTP Option Extension.
 * [RFC 2348] - TFTP Blocksize Option.
 * [RFC 2349] - TFTP Timeout Interval and Transfer Size Options.
+* [RFC 7440] - TFTP Windowsize Option.
 
 Features:
 

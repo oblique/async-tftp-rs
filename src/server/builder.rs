@@ -18,9 +18,11 @@ pub struct TftpServerBuilder<H: Handler> {
     socket: Option<Async<UdpSocket>>,
     timeout: Duration,
     block_size_limit: Option<u16>,
+    window_size_limit: Option<u16>,
     max_send_retries: u32,
     ignore_client_timeout: bool,
     ignore_client_block_size: bool,
+    ignore_client_window_size: bool,
 }
 
 impl TftpServerBuilder<DirHandler> {
@@ -63,9 +65,11 @@ impl<H: Handler> TftpServerBuilder<H> {
             socket: None,
             timeout: Duration::from_secs(3),
             block_size_limit: None,
+            window_size_limit: None,
             max_send_retries: 100,
             ignore_client_timeout: false,
             ignore_client_block_size: false,
+            ignore_client_window_size: false,
         }
     }
 
@@ -132,6 +136,19 @@ impl<H: Handler> TftpServerBuilder<H> {
         }
     }
 
+    /// Set maximum window size.
+    ///
+    /// Client can request a specific window size (RFC7440). Use this option if you
+    /// want to set a limit. Value of 1 is equivalent to window size option being disabled.
+    ///
+    /// Default: No limit.
+    pub fn window_size_limit(self, window_size: u16) -> Self {
+        TftpServerBuilder {
+            window_size_limit: Some(window_size),
+            ..self
+        }
+    }
+
     /// Set maximum send retries for a data block.
     ///
     /// On timeout server will try to send the data block again. When retries are
@@ -168,6 +185,18 @@ impl<H: Handler> TftpServerBuilder<H> {
         }
     }
 
+    /// Ignore client's window size option.
+    ///
+    /// With this you can ignore client's `window_size` option of RFC7440.
+    /// This will enforce the window size of 1 which behavior is equal to RFC1350
+    /// as per RFC7440.
+    pub fn ignore_client_window_size(self) -> Self {
+        TftpServerBuilder {
+            ignore_client_window_size: true,
+            ..self
+        }
+    }
+
     /// Build [`TftpServer`].
     pub async fn build(mut self) -> Result<TftpServer<H>> {
         let socket = match self.socket.take() {
@@ -178,9 +207,11 @@ impl<H: Handler> TftpServerBuilder<H> {
         let config = ServerConfig {
             timeout: self.timeout,
             block_size_limit: self.block_size_limit,
+            window_size_limit: self.window_size_limit,
             max_send_retries: self.max_send_retries,
             ignore_client_timeout: self.ignore_client_timeout,
             ignore_client_block_size: self.ignore_client_block_size,
+            ignore_client_window_size: self.ignore_client_window_size,
         };
 
         let local_ip = socket.as_ref().local_addr()?.ip();

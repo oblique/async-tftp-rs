@@ -12,6 +12,7 @@ pub fn external_tftp_recv(
     filename: &str,
     server: SocketAddr,
     block_size: Option<u16>,
+    window_size: Option<u16>,
 ) -> io::Result<md5::Digest> {
     let tmp = tempdir()?;
     let path = tmp.path().join("data");
@@ -24,6 +25,9 @@ pub fn external_tftp_recv(
 
     if let Some(block_size) = block_size {
         cmd.arg("--option").arg(format!("blksize {}", block_size));
+    }
+    if let Some(window_size) = window_size {
+        cmd.arg("--option").arg(format!("windowsize {}", window_size));
     }
 
     cmd.arg("-g")

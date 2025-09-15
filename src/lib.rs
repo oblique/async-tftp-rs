@@ -7,6 +7,7 @@
 //! * [RFC 2347] - TFTP Option Extension.
 //! * [RFC 2348] - TFTP Blocksize Option.
 //! * [RFC 2349] - TFTP Timeout Interval and Transfer Size Options.
+//! * [RFC 7440] - TFTP Windowsize Option.
 //!
 //! Features:
 //!
@@ -55,6 +56,7 @@
 //! [RFC 2347]: https://tools.ietf.org/html/rfc2347
 //! [RFC 2348]: https://tools.ietf.org/html/rfc2348
 //! [RFC 2349]: https://tools.ietf.org/html/rfc2349
+//! [RFC 7440]: https://tools.ietf.org/html/rfc7440
 
 pub mod server;
 

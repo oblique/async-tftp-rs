@@ -63,6 +63,7 @@ pub(crate) struct Opts {
     pub block_size: Option<u16>,
     pub timeout: Option<u8>,
     pub transfer_size: Option<u64>,
+    pub window_size: Option<u16>,
 }
 
 impl PacketType {
@@ -159,6 +160,12 @@ impl Opts {
         if let Some(transfer_size) = self.transfer_size {
             buf.put_slice(&b"tsize\0"[..]);
             buf.put_slice(transfer_size.to_string().as_bytes());
+            buf.put_u8(0);
+        }
+
+        if let Some(window_size) = self.window_size {
+            buf.put_slice(&b"windowsize\0"[..]);
+            buf.put_slice(window_size.to_string().as_bytes());
             buf.put_u8(0);
         }
     }
