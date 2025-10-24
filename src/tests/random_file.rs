@@ -3,8 +3,7 @@
 
 use async_channel::Sender;
 use futures_lite::AsyncRead;
-use rand::rngs::SmallRng;
-use rand::{RngCore, SeedableRng};
+use rand::RngCore;
 use std::cmp;
 use std::io::{self, Read};
 use std::pin::Pin;
@@ -13,7 +12,6 @@ use std::task::{Context, Poll};
 pub struct RandomFile {
     size: usize,
     read_size: usize,
-    rng: SmallRng,
     md5_ctx: Option<md5::Context>,
     md5_tx: Option<Sender<md5::Digest>>,
 }
@@ -23,7 +21,6 @@ impl RandomFile {
         RandomFile {
             size,
             read_size: 0,
-            rng: SmallRng::from_entropy(),
             md5_ctx: Some(md5::Context::new()),
             md5_tx: Some(md5_tx),
         }
@@ -37,7 +34,7 @@ impl Read for RandomFile {
                 (self.md5_ctx.take(), self.md5_tx.take())
             {
                 md5_tx
-                    .try_send(md5_ctx.compute())
+                    .try_send(md5_ctx.finalize())
                     .expect("failed to send md5 digest");
             }
 
@@ -45,7 +42,7 @@ impl Read for RandomFile {
         } else {
             let len = cmp::min(buf.len(), self.size - self.read_size);
 
-            self.rng.fill_bytes(&mut buf[..len]);
+            rand::rng().fill_bytes(&mut buf[..len]);
             self.md5_ctx.as_mut().unwrap().consume(&buf[..len]);
             self.read_size += len;
 
