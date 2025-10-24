@@ -6,7 +6,7 @@ use crate::packet::{
     Error as PacketError, Mode, Opts, Packet, PacketType, RwReq,
 };
 
-pub(crate) fn parse_packet(input: &[u8]) -> Result<Packet> {
+pub(crate) fn parse_packet(input: &[u8]) -> Result<Packet<'_>> {
     parse_packet_type(input)
         .and_then(|(packet_type, data)| match packet_type {
             PacketType::Rrq => parse_rrq(data),
@@ -90,7 +90,7 @@ pub(crate) fn parse_opts(mut input: &[u8]) -> Option<Opts> {
     Some(opts)
 }
 
-fn parse_rrq(input: &[u8]) -> Option<Packet> {
+fn parse_rrq(input: &[u8]) -> Option<Packet<'_>> {
     let (filename, rest) = parse_nul_str(input)?;
     let (mode, rest) = parse_mode(rest)?;
     let opts = parse_opts(rest)?;
@@ -102,7 +102,7 @@ fn parse_rrq(input: &[u8]) -> Option<Packet> {
     }))
 }
 
-fn parse_wrq(input: &[u8]) -> Option<Packet> {
+fn parse_wrq(input: &[u8]) -> Option<Packet<'_>> {
     let (filename, rest) = parse_nul_str(input)?;
     let (mode, rest) = parse_mode(rest)?;
     let opts = parse_opts(rest)?;
@@ -114,12 +114,12 @@ fn parse_wrq(input: &[u8]) -> Option<Packet> {
     }))
 }
 
-fn parse_data(input: &[u8]) -> Option<Packet> {
+fn parse_data(input: &[u8]) -> Option<Packet<'_>> {
     let (block_nr, rest) = parse_u16_be(input)?;
     Some(Packet::Data(block_nr, rest))
 }
 
-fn parse_ack(input: &[u8]) -> Option<Packet> {
+fn parse_ack(input: &[u8]) -> Option<Packet<'_>> {
     let (block_nr, rest) = parse_u16_be(input)?;
 
     if !rest.is_empty() {
@@ -129,7 +129,7 @@ fn parse_ack(input: &[u8]) -> Option<Packet> {
     Some(Packet::Ack(block_nr))
 }
 
-fn parse_error(input: &[u8]) -> Option<Packet> {
+fn parse_error(input: &[u8]) -> Option<Packet<'_>> {
     let (code, rest) = parse_u16_be(input)?;
     let (msg, rest) = parse_nul_str(rest)?;
 
@@ -140,7 +140,7 @@ fn parse_error(input: &[u8]) -> Option<Packet> {
     Some(Packet::Error(PacketError::from_code(code, Some(msg))))
 }
 
-fn parse_oack(input: &[u8]) -> Option<Packet> {
+fn parse_oack(input: &[u8]) -> Option<Packet<'_>> {
     let opts = parse_opts(input)?;
     Some(Packet::OAck(opts))
 }

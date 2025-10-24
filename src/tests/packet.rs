@@ -12,7 +12,7 @@ fn packet_to_bytes(packet: &Packet) -> Bytes {
 
 #[test]
 fn check_rrq() {
-    let packet = Packet::decode(b"\x00\x01abc\0netascii\0");
+    let packet = Packet::decode(b"\x00\x01abc\x00netascii\x00");
 
     assert!(matches!(packet, Ok(Packet::Rrq(ref req))
                     if req == &RwReq {
@@ -24,10 +24,10 @@ fn check_rrq() {
 
     assert_eq!(
         packet_to_bytes(&packet.unwrap()),
-        b"\x00\x01abc\0netascii\0"[..]
+        b"\x00\x01abc\x00netascii\x00"[..]
     );
 
-    let packet = Packet::decode(b"\x00\x01abc\0netascII\0");
+    let packet = Packet::decode(b"\x00\x01abc\x00netascII\x00");
 
     assert!(matches!(packet, Ok(Packet::Rrq(ref req))
                     if req == &RwReq {
@@ -39,20 +39,20 @@ fn check_rrq() {
 
     assert_eq!(
         packet_to_bytes(&packet.unwrap()),
-        b"\x00\x01abc\0netascii\0"[..]
+        b"\x00\x01abc\x00netascii\x00"[..]
     );
 
-    let packet = Packet::decode(b"\x00\x01abc\0netascii\0more");
+    let packet = Packet::decode(b"\x00\x01abc\x00netascii\x00more");
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
-    let packet = Packet::decode(b"\x00\x01abc\0netascii");
+    let packet = Packet::decode(b"\x00\x01abc\x00netascii");
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
-    let packet = Packet::decode(b"\x00\x01abc\0netascXX\0");
+    let packet = Packet::decode(b"\x00\x01abc\x00netascXX\x00");
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
     let packet = Packet::decode(
-        b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0",
+        b"\x00\x01abc\x00netascii\x00blksize\x00123\x00timeout\x003\x00tsize\x005556\x00",
     );
 
     assert!(matches!(packet, Ok(Packet::Rrq(ref req))
@@ -70,15 +70,16 @@ fn check_rrq() {
 
     assert_eq!(
         packet_to_bytes(&packet.unwrap()),
-        b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\05556\0"[..]
+        b"\x00\x01abc\x00netascii\x00blksize\x00123\x00timeout\x003\x00tsize\x005556\x00"[..]
     );
 
     let packet = Packet::decode(
-        b"\x00\x01abc\0netascii\0blksize\0123\0timeout\03\0tsize\0",
+        b"\x00\x01abc\x00netascii\x00blksize\x00123\x00timeout\x003\x00tsize\x00",
     );
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
-    let packet = Packet::decode(b"\x00\x01abc\0netascii\0blksizeX\0123\0");
+    let packet =
+        Packet::decode(b"\x00\x01abc\x00netascii\x00blksizeX\x00123\x00");
     assert!(matches!(packet, Ok(Packet::Rrq(ref req))
                     if req == &RwReq {
                         filename: "abc".to_string(),
@@ -90,7 +91,7 @@ fn check_rrq() {
 
 #[test]
 fn check_wrq() {
-    let packet = Packet::decode(b"\x00\x02abc\0octet\0");
+    let packet = Packet::decode(b"\x00\x02abc\x00octet\x00");
 
     assert!(matches!(packet, Ok(Packet::Wrq(ref req))
                     if req == &RwReq {
@@ -100,9 +101,12 @@ fn check_wrq() {
                     }
     ));
 
-    assert_eq!(packet_to_bytes(&packet.unwrap()), b"\x00\x02abc\0octet\0"[..]);
+    assert_eq!(
+        packet_to_bytes(&packet.unwrap()),
+        b"\x00\x02abc\x00octet\x00"[..]
+    );
 
-    let packet = Packet::decode(b"\x00\x02abc\0OCTet\0");
+    let packet = Packet::decode(b"\x00\x02abc\x00OCTet\x00");
 
     assert!(matches!(packet, Ok(Packet::Wrq(ref req))
                     if req == &RwReq {
@@ -112,19 +116,22 @@ fn check_wrq() {
                     }
     ));
 
-    assert_eq!(packet_to_bytes(&packet.unwrap()), b"\x00\x02abc\0octet\0"[..]);
+    assert_eq!(
+        packet_to_bytes(&packet.unwrap()),
+        b"\x00\x02abc\x00octet\x00"[..]
+    );
 
-    let packet = Packet::decode(b"\x00\x02abc\0octet\0more");
+    let packet = Packet::decode(b"\x00\x02abc\x00octet\x00more");
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
-    let packet = Packet::decode(b"\x00\x02abc\0octet");
+    let packet = Packet::decode(b"\x00\x02abc\x00octet");
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
-    let packet = Packet::decode(b"\x00\x02abc\0octex\0");
+    let packet = Packet::decode(b"\x00\x02abc\x00octex\x00");
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
     let packet = Packet::decode(
-        b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0windowsize\04\0",
+        b"\x00\x02abc\x00octet\x00blksize\x00123\x00timeout\x003\x00tsize\x005556\x00windowsize\x004\x00",
     );
 
     assert!(matches!(packet, Ok(Packet::Wrq(ref req))
@@ -142,10 +149,10 @@ fn check_wrq() {
 
     assert_eq!(
         packet_to_bytes(&packet.unwrap()),
-        b"\x00\x02abc\0octet\0blksize\0123\0timeout\03\0tsize\05556\0windowsize\04\0"[..]
+        b"\x00\x02abc\x00octet\x00blksize\x00123\x00timeout\x003\x00tsize\x005556\x00windowsize\x004\x00"[..]
     );
 
-    let packet = Packet::decode(b"\x00\x02abc\0octet\0blksizeX\0123\0");
+    let packet = Packet::decode(b"\x00\x02abc\x00octet\x00blksizeX\x00123\x00");
     assert!(matches!(packet, Ok(Packet::Wrq(ref req))
                     if req == &RwReq {
                         filename: "abc".to_string(),
@@ -184,25 +191,31 @@ fn check_ack() {
 
 #[test]
 fn check_error() {
-    let packet = Packet::decode(b"\x00\x05\x00\x01msg\0");
+    let packet = Packet::decode(b"\x00\x05\x00\x01msg\x00");
     assert!(matches!(packet, Ok(Packet::Error(packet::Error::FileNotFound))));
     assert_eq!(
         packet_to_bytes(&packet.unwrap()),
-        b"\x00\x05\x00\x01File not found\0"[..]
+        b"\x00\x05\x00\x01File not found\x00"[..]
     );
 
     // 0x10 is unknown error code an will be treated as 0
-    let packet = Packet::decode(b"\x00\x05\x00\x10msg\0");
+    let packet = Packet::decode(b"\x00\x05\x00\x10msg\x00");
     assert!(matches!(packet, Ok(Packet::Error(packet::Error::Msg(ref errmsg)))
                         if errmsg == "msg"));
-    assert_eq!(packet_to_bytes(&packet.unwrap()), b"\x00\x05\x00\x00msg\0"[..]);
+    assert_eq!(
+        packet_to_bytes(&packet.unwrap()),
+        b"\x00\x05\x00\x00msg\x00"[..]
+    );
 
-    let packet = Packet::decode(b"\x00\x05\x00\x00msg\0");
+    let packet = Packet::decode(b"\x00\x05\x00\x00msg\x00");
     assert!(matches!(packet, Ok(Packet::Error(packet::Error::Msg(ref errmsg)))
                         if errmsg == "msg"));
-    assert_eq!(packet_to_bytes(&packet.unwrap()), b"\x00\x05\x00\x00msg\0"[..]);
+    assert_eq!(
+        packet_to_bytes(&packet.unwrap()),
+        b"\x00\x05\x00\x00msg\x00"[..]
+    );
 
-    let packet = Packet::decode(b"\x00\x05\x00\x00msg\0more");
+    let packet = Packet::decode(b"\x00\x05\x00\x00msg\x00more");
     assert!(matches!(packet, Err(ref e) if matches!(e, Error::InvalidPacket)));
 
     let packet = Packet::decode(b"\x00\x05\x00\x00msg");
@@ -219,7 +232,7 @@ fn check_oack() {
         matches!(packet, Ok(Packet::OAck(ref opts)) if opts == &Opts::default())
     );
 
-    let packet = Packet::decode(b"\x00\x06blksize\0123\0");
+    let packet = Packet::decode(b"\x00\x06blksize\x00123\x00");
     assert!(matches!(packet, Ok(Packet::OAck(ref opts))
                     if opts == &Opts {
                         block_size: Some(123),
@@ -227,7 +240,7 @@ fn check_oack() {
                     }
     ));
 
-    let packet = Packet::decode(b"\x00\x06timeout\03\0");
+    let packet = Packet::decode(b"\x00\x06timeout\x003\x00");
     assert!(matches!(packet, Ok(Packet::OAck(ref opts))
                     if opts == &Opts {
                         timeout: Some(3),
@@ -235,7 +248,7 @@ fn check_oack() {
                     }
     ));
 
-    let packet = Packet::decode(b"\x00\x06tsize\05556\0");
+    let packet = Packet::decode(b"\x00\x06tsize\x005556\x00");
     assert!(matches!(packet, Ok(Packet::OAck(ref opts))
                     if opts == &Opts {
                         transfer_size: Some(5556),
@@ -243,8 +256,9 @@ fn check_oack() {
                     }
     ));
 
-    let packet =
-        Packet::decode(b"\x00\x06tsize\05556\0blksize\0123\0timeout\03\0");
+    let packet = Packet::decode(
+        b"\x00\x06tsize\x005556\x00blksize\x00123\x00timeout\x003\x00",
+    );
     assert!(matches!(packet, Ok(Packet::OAck(ref opts))
                     if opts == &Opts {
                         block_size: Some(123),
@@ -266,7 +280,7 @@ fn check_packet() {
 
 #[test]
 fn check_blksize_boundaries() {
-    let opts = parse_opts(b"blksize\07\0").unwrap();
+    let opts = parse_opts(b"blksize\x007\x00").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -275,7 +289,7 @@ fn check_blksize_boundaries() {
         }
     );
 
-    let opts = parse_opts(b"blksize\08\0").unwrap();
+    let opts = parse_opts(b"blksize\x008\x00").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -284,7 +298,7 @@ fn check_blksize_boundaries() {
         }
     );
 
-    let opts = parse_opts(b"blksize\065464\0").unwrap();
+    let opts = parse_opts(b"blksize\x0065464\x00").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -293,7 +307,7 @@ fn check_blksize_boundaries() {
         }
     );
 
-    let opts = parse_opts(b"blksize\065465\0").unwrap();
+    let opts = parse_opts(b"blksize\x0065465\x00").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -305,7 +319,7 @@ fn check_blksize_boundaries() {
 
 #[test]
 fn check_timeout_boundaries() {
-    let opts = parse_opts(b"timeout\00\0").unwrap();
+    let opts = parse_opts(b"timeout\x000\x00").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -314,7 +328,7 @@ fn check_timeout_boundaries() {
         }
     );
 
-    let opts = parse_opts(b"timeout\01\0").unwrap();
+    let opts = parse_opts(b"timeout\x001\x00").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -323,7 +337,7 @@ fn check_timeout_boundaries() {
         }
     );
 
-    let opts = parse_opts(b"timeout\0255\0").unwrap();
+    let opts = parse_opts(b"timeout\x00255\x00").unwrap();
     assert_eq!(
         opts,
         Opts {
@@ -332,7 +346,7 @@ fn check_timeout_boundaries() {
         }
     );
 
-    let opts = parse_opts(b"timeout\0256\0").unwrap();
+    let opts = parse_opts(b"timeout\x00256\x00").unwrap();
     assert_eq!(
         opts,
         Opts {

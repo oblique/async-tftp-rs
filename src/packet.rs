@@ -87,7 +87,7 @@ impl From<PacketType> for u16 {
 }
 
 impl<'a> Packet<'a> {
-    pub(crate) fn decode(data: &[u8]) -> Result<Packet> {
+    pub(crate) fn decode(data: &[u8]) -> Result<Packet<'_>> {
         parse_packet(data)
     }
 
