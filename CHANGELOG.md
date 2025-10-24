@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add support for windowsize option (RFC 7440) ([#17](https://github.com/oblique/async-tftp-rs/pull/17))
+- Use RTITIT instead of async-trait
+- Implement parsing without nom
 - Remove `num-traits` dependency
 - Update all dependencies
 - Use `tokio` in examples
