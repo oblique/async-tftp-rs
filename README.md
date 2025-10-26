@@ -46,7 +46,7 @@ Add in `Cargo.toml`:
 
 ```toml
 [dependencies]
-async-tftp = "0.3"
+async-tftp = "0.4"
 # or any other runtime/executor
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
