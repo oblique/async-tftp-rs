@@ -4,7 +4,7 @@ use crate::error::Error;
 use crate::packet::{self, Mode, Opts, Packet, RwReq};
 use crate::parse::parse_opts;
 
-fn packet_to_bytes(packet: &Packet) -> Bytes {
+pub(crate) fn packet_to_bytes(packet: &Packet) -> Bytes {
     let mut buf = BytesMut::with_capacity(0);
     packet.encode(&mut buf);
     buf.freeze()

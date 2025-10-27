@@ -32,6 +32,7 @@ pub enum Error {
     UnknownTransferId,
     FileAlreadyExists,
     NoSuchUser,
+    OptionNegotiationFailed,
 }
 
 #[derive(Debug)]
@@ -192,6 +193,7 @@ impl Error {
             5 => Error::UnknownTransferId,
             6 => Error::FileAlreadyExists,
             7 => Error::NoSuchUser,
+            8 => Error::OptionNegotiationFailed,
             0 | _ => match msg {
                 Some(msg) => Error::Msg(msg.to_string()),
                 None => Error::UnknownError,
@@ -210,6 +212,7 @@ impl Error {
             Error::UnknownTransferId => 5,
             Error::FileAlreadyExists => 6,
             Error::NoSuchUser => 7,
+            Error::OptionNegotiationFailed => 8,
         }
     }
 
@@ -224,7 +227,12 @@ impl Error {
             Error::UnknownTransferId => "Unknown transfer ID",
             Error::FileAlreadyExists => "File already exists",
             Error::NoSuchUser => "No such user",
+            Error::OptionNegotiationFailed => "Option negotiation failed",
         }
+    }
+
+    pub(crate) fn is_client_error(&self) -> bool {
+        matches!(self, Error::OptionNegotiationFailed)
     }
 }
 

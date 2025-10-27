@@ -1,31 +1,28 @@
-#![cfg(feature = "external-client-tests")]
-#![cfg(target_os = "linux")]
-
-use async_channel::Sender;
+use crate::packet;
+use crate::server::Handler;
 use futures_lite::io::Sink;
+use futures_lite::AsyncRead;
 use std::net::SocketAddr;
 use std::path::Path;
 
-use super::random_file::RandomFile;
-use crate::packet;
-use crate::server::Handler;
-
-pub struct RandomHandler {
-    md5_tx: Option<Sender<md5::Digest>>,
-    file_size: usize,
+pub struct ReaderHandler<Reader> {
+    reader: Option<Reader>,
+    size: Option<u64>,
 }
 
-impl RandomHandler {
-    pub fn new(file_size: usize, md5_tx: Sender<md5::Digest>) -> Self {
-        RandomHandler {
-            md5_tx: Some(md5_tx),
-            file_size,
+impl<Reader> ReaderHandler<Reader> {
+    pub fn new(reader: Reader, size: Option<u64>) -> Self {
+        ReaderHandler {
+            reader: Some(reader),
+            size,
         }
     }
 }
 
-impl Handler for RandomHandler {
-    type Reader = RandomFile;
+impl<Reader: Send + AsyncRead + Unpin + 'static> Handler
+    for ReaderHandler<Reader>
+{
+    type Reader = Reader;
     type Writer = Sink;
 
     async fn read_req_open(
@@ -33,8 +30,7 @@ impl Handler for RandomHandler {
         _client: &SocketAddr,
         _path: &Path,
     ) -> Result<(Self::Reader, Option<u64>), packet::Error> {
-        let md5_tx = self.md5_tx.take().expect("md5_tx already consumed");
-        Ok((RandomFile::new(self.file_size, md5_tx), None))
+        Ok((self.reader.take().expect("reader already consumed"), self.size))
     }
 
     async fn write_req_open(

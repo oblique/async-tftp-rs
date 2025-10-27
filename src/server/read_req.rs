@@ -77,12 +77,20 @@ where
     pub(crate) async fn handle(&mut self) {
         if let Err(e) = self.try_handle().await {
             trace!("RRQ request failed (peer: {}, error: {})", &self.peer, &e);
-            let mut buffer = BytesMut::with_capacity(DEFAULT_BLOCK_SIZE);
-            Packet::Error(e.into()).encode(&mut buffer);
-            let buf = buffer.split().freeze();
-            // Errors are never retransmitted.
-            // We do not care if `send_to` resulted to an IO error.
-            let _ = self.socket.send_to(&buf[..], self.peer).await;
+
+            if let Error::Packet(
+                crate::packet::Error::OptionNegotiationFailed,
+            ) = e
+            {
+                // client aborted the connection, nothing to do
+            } else {
+                let mut buffer = BytesMut::with_capacity(DEFAULT_BLOCK_SIZE);
+                Packet::Error(e.into()).encode(&mut buffer);
+                let buf = buffer.split().freeze();
+                // Errors are never retransmitted.
+                // We do not care if `send_to` resulted to an IO error.
+                let _ = self.socket.send_to(&buf[..], self.peer).await;
+            }
         }
     }
 
@@ -92,17 +100,20 @@ where
         let mut block_id: u16;
         let mut window_base: u16 = 1;
         let mut buf: Bytes;
-        let mut is_last_block: bool;
+        let mut is_last_block: bool = false;
 
-        (buf, is_last_block) = self.fill_data_block(window_base).await?;
-        window.push_back(buf);
-
-        // Send OACK after we manage to read the first block from reader.
-        //
-        // We do this because we want to give the developers the option to
-        // produce an error after they construct a reader.
-        if let Some(opts) = self.oack_opts.as_ref() {
+        if let Some(opts) = self.oack_opts.take() {
             trace!("RRQ OACK (peer: {}, opts: {:?}", &self.peer, &opts);
+            // Send OACK after we manage to read the first block from the reader for
+            // non-transfer size probe requests (oack.transfer_size value is set).
+            // During transfer size probes a client aborts the connection after receiving
+            // oack from the server. For normal requests we do this because we want to give
+            // the developers the option to produce an error after they construct a reader.
+            if opts.transfer_size.is_none() {
+                (buf, is_last_block) =
+                    self.fill_data_block(window_base).await?;
+                window.push_back(buf);
+            }
             let mut buff = BytesMut::with_capacity(PACKET_DATA_HEADER_LEN + 64);
             Packet::OAck(opts.to_owned()).encode(&mut buff);
             // OACK is not really part of the window, so we send it separately
@@ -186,7 +197,9 @@ where
                     );
                     return Ok(blocks_acked);
                 }
-                Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                Err(Error::Io(ref e))
+                    if e.kind() == io::ErrorKind::TimedOut =>
+                {
                     trace!(
                         "RRQ (peer: {}, block_id: {}) - Timeout",
                         &self.peer,
@@ -194,7 +207,7 @@ where
                     );
                     continue;
                 }
-                Err(e) => return Err(e.into()),
+                Err(e) => return Err(e),
             }
         }
 
@@ -206,7 +219,7 @@ where
         &mut self,
         window_base: u16,
         window_len: u16,
-    ) -> io::Result<u16> {
+    ) -> Result<u16> {
         // We can not use `self` within `async_std::io::timeout` because not all
         // struct members implement `Sync`. So we borrow only what we need.
         let socket = &mut self.socket;
@@ -224,30 +237,37 @@ where
                 }
 
                 // parse only valid Ack packets, the rest are ignored
-                if let Ok(Packet::Ack(recved_block_id)) =
-                    Packet::decode(&buf[..len])
+                // if let Ok(Packet::Ack(recved_block_id)) =
+                match Packet::decode(&buf[..len])
                 {
-                    let window_end = window_base.wrapping_add(window_len);
+                    Ok(Packet::Ack(recved_block_id)) => {
+                        let window_end = window_base.wrapping_add(window_len);
 
-                    if window_end > window_base {
-                        // window_end did not wrap
-                        if recved_block_id >= window_base && recved_block_id < window_end {
-                            // number of blocks acked
-                            return Ok(recved_block_id-window_base+1u16);
-                        }
-                        else {
-                            trace!("Unexpected ack packet {recved_block_id}, window_base: {window_base}, window_len: {window_len}");
-                        }
-                    }else {
-                        // window_end wrapped
-                        if recved_block_id >= window_base {
-                            return Ok(1u16 + (recved_block_id - window_base));
-                        } else if recved_block_id < window_end {
-                            return Ok(1u16 + recved_block_id + (window_len - window_end));
+                        if window_end > window_base {
+                            // window_end did not wrap
+                            if recved_block_id >= window_base && recved_block_id < window_end {
+                                // number of blocks acked
+                                return Ok(recved_block_id - window_base + 1u16);
+                            } else {
+                                trace!("Unexpected ack packet {recved_block_id}, window_base: {window_base}, window_len: {window_len}");
+                            }
                         } else {
-                            trace!("Unexpected ack packet {recved_block_id}, window_base: {window_base}, window_len: {window_len}");
+                            // window_end wrapped
+                            if recved_block_id >= window_base {
+                                return Ok(1u16 + (recved_block_id - window_base));
+                            } else if recved_block_id < window_end {
+                                return Ok(1u16 + recved_block_id + (window_len - window_end));
+                            } else {
+                                trace!("Unexpected ack packet {recved_block_id}, window_base: {window_base}, window_len: {window_len}");
+                            }
                         }
+                    },
+                     Ok(Packet::Error(error)) if error.is_client_error()=> {
+                         // pass errors coming from the client
+                        return Err(Error::Packet(error))
                     }
+                    // ignore all other errors
+                    _ => {}
                 }
             }
         })

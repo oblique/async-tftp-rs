@@ -27,7 +27,7 @@ fn transfer(
 
         async move {
             let (md5_tx, md5_rx) = async_channel::bounded(1);
-            let handler = RandomHandler::new(file_size, md5_tx);
+            let handler = ReaderHandler::new(md5_tx, Some(file_size));
 
             // bind
             let tftpd = TftpServerBuilder::with_handler(handler)
