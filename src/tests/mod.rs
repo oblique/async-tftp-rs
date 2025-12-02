@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+mod client;
 mod external_client;
 mod handlers;
 mod packet;
