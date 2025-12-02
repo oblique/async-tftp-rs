@@ -1,6 +1,6 @@
 [package]
 name = "async-tftp"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["oblique <psyberbits@gmail.com>"]
 edition = "2021"
 rust-version = "1.75"

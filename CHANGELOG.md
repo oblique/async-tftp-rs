@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+## [0.4.2] - 2025-12-02
+
+### Added
+
+- write_req: Close file after writing [#21](https://github.com/oblique/async-tftp-rs/pull/21)
+
 ## [0.4.1] - 2025-10-25
 
 ### Changed
@@ -128,7 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [First release](https://docs.rs/async-tftp/0.1.0)
 
 
-[unreleased]: https://github.com/oblique/async-tftp-rs/compare/0.4.1...HEAD
+[unreleased]: https://github.com/oblique/async-tftp-rs/compare/0.4.2...HEAD
+[0.4.2]: https://github.com/oblique/async-tftp-rs/compare/0.4.1...0.4.2
 [0.4.1]: https://github.com/oblique/async-tftp-rs/compare/0.3.6...0.4.1
 [0.3.6]: https://github.com/oblique/async-tftp-rs/compare/0.3.5...0.3.6
 [0.3.5]: https://github.com/oblique/async-tftp-rs/compare/0.3.4...0.3.5
