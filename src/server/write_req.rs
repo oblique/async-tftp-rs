@@ -108,6 +108,9 @@ where
             }
         }
 
+        self.writer.flush().await?;
+        self.writer.close().await?;
+
         Ok(())
     }
 
